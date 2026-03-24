@@ -1,5 +1,7 @@
 import { ApplePwaSplash } from '@/app/apple-pwa-splash'
+import { AuthControls } from '@/components/auth-controls'
 import { LocaleSwitcher } from '@/components/locale-switcher'
+import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { ProgressBar } from '@/components/progress-bar'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -76,12 +78,16 @@ function Content({ children }: { children: React.ReactNode }) {
             <li>
               <ThemeToggle />
             </li>
+            <li>
+              <AuthControls />
+            </li>
           </ul>
         </div>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col px-0 pt-16">{children}</div>
+      <div className="flex flex-1 flex-col px-0 pt-16 pb-20 sm:pb-0">{children}</div>
+      <MobileBottomNav />
       <Toaster />
     </TRPCProvider>
   )

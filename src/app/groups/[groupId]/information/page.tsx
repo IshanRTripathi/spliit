@@ -1,5 +1,5 @@
-import GroupInformation from '@/app/groups/[groupId]/information/group-information'
 import { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'Group Information',
@@ -11,5 +11,5 @@ export default async function InformationPage({
   params: Promise<{ groupId: string }>
 }) {
   const { groupId } = await params
-  return <GroupInformation groupId={groupId} />
+  redirect(`/groups/${groupId}/edit`)
 }

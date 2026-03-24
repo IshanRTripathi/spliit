@@ -1,9 +1,9 @@
 import { updateGroup } from '@/lib/api'
 import { groupFormSchema } from '@/lib/schemas'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const updateGroupProcedure = baseProcedure
+export const updateGroupProcedure = authedProcedure
   .input(
     z.object({
       groupId: z.string().min(1),
@@ -11,6 +11,11 @@ export const updateGroupProcedure = baseProcedure
       participantId: z.string().optional(),
     }),
   )
-  .mutation(async ({ input: { groupId, groupFormValues, participantId } }) => {
-    await updateGroup(groupId, groupFormValues, participantId)
-  })
+  .mutation(
+    async ({
+      input: { groupId, groupFormValues, participantId },
+      ctx: { userIdentifier },
+    }) => {
+      await updateGroup(groupId, groupFormValues, userIdentifier, participantId)
+    },
+  )

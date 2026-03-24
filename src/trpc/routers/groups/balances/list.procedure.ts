@@ -4,13 +4,13 @@ import {
   getPublicBalances,
   getSuggestedReimbursements,
 } from '@/lib/balances'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const listGroupBalancesProcedure = baseProcedure
+export const listGroupBalancesProcedure = authedProcedure
   .input(z.object({ groupId: z.string().min(1) }))
-  .query(async ({ input: { groupId } }) => {
-    const expenses = await getGroupExpenses(groupId)
+  .query(async ({ input: { groupId }, ctx: { userIdentifier } }) => {
+    const expenses = await getGroupExpenses(groupId, undefined, userIdentifier)
     const balances = getBalances(expenses)
     const reimbursements = getSuggestedReimbursements(balances)
     const publicBalances = getPublicBalances(reimbursements)

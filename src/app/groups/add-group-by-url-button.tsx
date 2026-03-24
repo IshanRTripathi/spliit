@@ -1,4 +1,3 @@
-import { saveRecentGroup } from '@/app/groups/recent-groups-helpers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,6 +23,7 @@ export function AddGroupByUrlButton({ reload }: Props) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const utils = trpc.useUtils()
+  const acceptInvite = trpc.groups.acceptInvite.useMutation()
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,20 +40,23 @@ export function AddGroupByUrlButton({ reload }: Props) {
           className="flex gap-2"
           onSubmit={async (event) => {
             event.preventDefault()
-            const [, groupId] =
+            const [, token] =
               url.match(
-                new RegExp(`${window.location.origin}/groups/([^/]+)`),
+                new RegExp(`${window.location.origin}/invite/([^/?]+)`),
               ) ?? []
+            if (!token) {
+              setError(true)
+              return
+            }
             setPending(true)
-            const { group } = await utils.groups.get.fetch({
-              groupId: groupId,
-            })
-            if (group) {
-              saveRecentGroup({ id: group.id, name: group.name })
+            try {
+              await acceptInvite.mutateAsync({ token })
+              await utils.groups.list.invalidate()
               reload()
               setUrl('')
               setOpen(false)
-            } else {
+              setPending(false)
+            } catch {
               setError(true)
               setPending(false)
             }
@@ -62,7 +65,7 @@ export function AddGroupByUrlButton({ reload }: Props) {
           <Input
             type="url"
             required
-            placeholder="https://spliit.app/..."
+            placeholder="https://your-domain.com/invite/..."
             className="flex-1 text-base"
             value={url}
             disabled={pending}

@@ -442,7 +442,7 @@ export function ExpenseForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(submit)}>
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>
               {t(`${sExpense}.${isCreate ? 'create' : 'edit'}`)}
@@ -808,7 +808,7 @@ export function ExpenseForm({
           </CardContent>
         </Card>
 
-        <Card className="mt-4">
+        <Card className="mt-4 overflow-hidden">
           <CardHeader>
             <CardTitle className="flex justify-between">
               <span>{t(`${sExpense}.paidFor.title`)}</span>
@@ -1255,6 +1255,7 @@ export function ExpenseForm({
                 name="documents"
                 render={({ field }) => (
                   <ExpenseDocumentsInput
+                    groupId={group.id}
                     documents={field.value}
                     updateDocuments={field.onChange}
                   />
@@ -1264,7 +1265,8 @@ export function ExpenseForm({
           </Card>
         )}
 
-        <div className="flex mt-4 gap-2">
+        <div className="sticky bottom-2 z-30 mt-4 rounded-2xl border border-border/80 bg-background/95 p-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+          <div className="flex gap-2">
           <SubmitButton loadingContent={t(isCreate ? 'creating' : 'saving')}>
             <Save className="w-4 h-4 mr-2" />
             {t(isCreate ? 'create' : 'save')}
@@ -1277,6 +1279,7 @@ export function ExpenseForm({
           <Button variant="ghost" asChild>
             <Link href={`/groups/${group.id}`}>{t('cancel')}</Link>
           </Button>
+          </div>
         </div>
       </form>
     </Form>

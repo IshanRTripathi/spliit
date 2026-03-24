@@ -1,9 +1,9 @@
 import { createExpense } from '@/lib/api'
 import { expenseFormSchema } from '@/lib/schemas'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const createGroupExpenseProcedure = baseProcedure
+export const createGroupExpenseProcedure = authedProcedure
   .input(
     z.object({
       groupId: z.string().min(1),
@@ -12,10 +12,14 @@ export const createGroupExpenseProcedure = baseProcedure
     }),
   )
   .mutation(
-    async ({ input: { groupId, expenseFormValues, participantId } }) => {
+    async ({
+      input: { groupId, expenseFormValues, participantId },
+      ctx: { userIdentifier },
+    }) => {
       const expense = await createExpense(
         expenseFormValues,
         groupId,
+        userIdentifier,
         participantId,
       )
       return { expenseId: expense.id }

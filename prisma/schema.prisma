@@ -20,16 +20,56 @@ model Group {
   participants Participant[]
   expenses     Expense[]
   activities   Activity[]
+  memberships  GroupMembership[]
+  invites      GroupInvite[]
   createdAt    DateTime      @default(now())
+}
+
+model AppUser {
+  id         String            @id @default(cuid())
+  identifier String            @unique
+  createdAt  DateTime          @default(now())
+  memberships GroupMembership[]
+}
+
+model GroupMembership {
+  id      String    @id @default(cuid())
+  group   Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  user    AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  role    GroupRole @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model GroupInvite {
+  id              String   @id @default(cuid())
+  token           String   @unique
+  group           Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId         String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+
+  @@index([groupId])
+  @@index([token, revokedAt, expiresAt])
 }
 
 model Participant {
   id              String           @id
   name            String
+  userIdentifier  String?
   group           Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId         String
   expensesPaidBy  Expense[]
   expensesPaidFor ExpensePaidFor[]
+
+  @@unique([groupId, userIdentifier])
+  @@index([groupId])
 }
 
 model Category {
@@ -130,4 +170,9 @@ enum ActivityType {
   CREATE_EXPENSE
   UPDATE_EXPENSE
   DELETE_EXPENSE
+}
+
+enum GroupRole {
+  OWNER
+  MEMBER
 }

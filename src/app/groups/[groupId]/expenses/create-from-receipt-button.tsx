@@ -38,14 +38,29 @@ import { useLocale, useTranslations } from 'next-intl'
 import { getImageData, usePresignedUpload } from 'next-s3-upload'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { PropsWithChildren, ReactNode, useState } from 'react'
+import { PropsWithChildren, ReactNode, useEffect, useRef, useState } from 'react'
 import { useCurrentGroup } from '../current-group-context'
 
 const MAX_FILE_SIZE = 5 * 1024 ** 2
 
 export function CreateFromReceiptButton() {
+  return <CreateFromReceiptButtonInner compact autoOpen={false} />
+}
+
+export function CreateFromReceiptButtonInner({
+  compact,
+  autoOpen = false,
+}: {
+  compact: boolean
+  autoOpen?: boolean
+}) {
   const t = useTranslations('CreateFromReceipt')
   const isDesktop = useMediaQuery('(min-width: 640px)')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true)
+  }, [autoOpen])
 
   const DialogOrDrawer = isDesktop
     ? CreateFromReceiptDialog
@@ -55,11 +70,13 @@ export function CreateFromReceiptButton() {
     <DialogOrDrawer
       trigger={
         <Button
-          size="icon"
+          size={compact ? 'icon' : 'default'}
           variant="secondary"
           title={t('Dialog.triggerTitle')}
+          className={compact ? undefined : 'gap-2'}
         >
           <Receipt className="w-4 h-4" />
+          {!compact ? <span>{t('Dialog.triggerTitle')}</span> : null}
         </Button>
       }
       title={
@@ -71,6 +88,8 @@ export function CreateFromReceiptButton() {
         </>
       }
       description={<>{t('Dialog.description')}</>}
+      open={open}
+      onOpenChange={setOpen}
     >
       <ReceiptDialogContent />
     </DialogOrDrawer>
@@ -85,9 +104,10 @@ function ReceiptDialogContent() {
   const locale = useLocale()
   const t = useTranslations('CreateFromReceipt')
   const [pending, setPending] = useState(false)
-  const { uploadToS3, FileInput, openFileDialog } = usePresignedUpload()
+  const { uploadToS3 } = usePresignedUpload()
   const { toast } = useToast()
   const router = useRouter()
+  const captureInputRef = useRef<HTMLInputElement | null>(null)
   const [receiptInfo, setReceiptInfo] = useState<
     | null
     | (ReceiptExtractedInfo & { url: string; width?: number; height?: number })
@@ -110,7 +130,13 @@ function ReceiptDialogContent() {
       try {
         setPending(true)
         console.log('Uploading image…')
-        let { url } = await uploadToS3(file)
+        let { url } = await uploadToS3(file, {
+          endpoint: {
+            request: {
+              body: { groupId: group?.id },
+            },
+          },
+        })
         console.log('Extracting information from receipt…')
         const { amount, categoryId, date, title } =
           await extractExpenseInformationFromImage(url)
@@ -144,16 +170,27 @@ function ReceiptDialogContent() {
     null
 
   return (
-    <div className="prose prose-sm dark:prose-invert">
-      <p>{t('Dialog.body')}</p>
-      <div>
-        <FileInput onChange={handleFileChange} accept="image/jpeg,image/png" />
+      <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{t('Dialog.body')}</p>
+      <div className="rounded-2xl border border-border/70 p-3">
+        <input
+          ref={captureInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) handleFileChange(file)
+            event.currentTarget.value = ''
+          }}
+        />
         <div className="grid gap-x-4 gap-y-2 grid-cols-3">
           <Button
             variant="secondary"
             className="row-span-3 w-full h-full relative"
             title="Create expense from receipt"
-            onClick={openFileDialog}
+            onClick={() => captureInputRef.current?.click()}
             disabled={pending}
           >
             {pending ? (
@@ -241,7 +278,7 @@ function ReceiptDialogContent() {
           </div>
         </div>
       </div>
-      <p>{t('Dialog.editNext')}</p>
+      <p className="text-sm text-muted-foreground">{t('Dialog.editNext')}</p>
       <div className="text-center">
         <Button
           disabled={pending || !receiptInfo}
@@ -282,13 +319,17 @@ function CreateFromReceiptDialog({
   title,
   description,
   children,
+  open,
+  onOpenChange,
 }: PropsWithChildren<{
   trigger: ReactNode
   title: ReactNode
   description: ReactNode
+  open: boolean
+  onOpenChange: (nextOpen: boolean) => void
 }>) {
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -308,13 +349,17 @@ function CreateFromReceiptDrawer({
   title,
   description,
   children,
+  open,
+  onOpenChange,
 }: PropsWithChildren<{
   trigger: ReactNode
   title: ReactNode
   description: ReactNode
+  open: boolean
+  onOpenChange: (nextOpen: boolean) => void
 }>) {
   return (
-    <Drawer>
+    <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>

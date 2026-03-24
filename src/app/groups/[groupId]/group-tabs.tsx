@@ -1,5 +1,6 @@
 'use client'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -10,26 +11,39 @@ type Props = {
 export function GroupTabs({ groupId }: Props) {
   const t = useTranslations()
   const pathname = usePathname()
-  const value =
-    pathname.replace(/\/groups\/[^\/]+\/([^/]+).*/, '$1') || 'expenses'
+  const currentSegment =
+    pathname.match(/^\/groups\/[^/]+\/([^/]+)/)?.[1] ?? 'expenses'
   const router = useRouter()
+  const tabs = [
+    { value: 'expenses', label: t('Expenses.title') },
+    { value: 'balances', label: t('Balances.title') },
+    { value: 'stats', label: t('Stats.title') },
+  ] as const
 
   return (
-    <Tabs
-      value={value}
-      className="w-full overflow-x-auto"
-      onValueChange={(value) => {
-        router.push(`/groups/${groupId}/${value}`)
-      }}
-    >
-      <TabsList className="w-max min-w-full justify-start border border-border/70 bg-card/80">
-        <TabsTrigger value="expenses">{t('Expenses.title')}</TabsTrigger>
-        <TabsTrigger value="balances">{t('Balances.title')}</TabsTrigger>
-        <TabsTrigger value="information">{t('Information.title')}</TabsTrigger>
-        <TabsTrigger value="stats">{t('Stats.title')}</TabsTrigger>
-        <TabsTrigger value="activity">{t('Activity.title')}</TabsTrigger>
-        <TabsTrigger value="edit">{t('Settings.title')}</TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <div className="w-full overflow-x-auto">
+      <div className="inline-flex min-w-full items-center gap-1 rounded-2xl border border-border/70 bg-card/85 p-1.5 shadow-sm">
+        {tabs.map((tab) => {
+          const isActive = currentSegment === tab.value
+          return (
+            <Button
+              key={tab.value}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/groups/${groupId}/${tab.value}`)}
+              className={cn(
+                'h-9 rounded-xl px-3 whitespace-nowrap text-xs sm:text-sm',
+                isActive
+                  ? 'bg-background text-foreground shadow-sm border border-border/70'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {tab.label}
+            </Button>
+          )
+        })}
+      </div>
+    </div>
   )
 }

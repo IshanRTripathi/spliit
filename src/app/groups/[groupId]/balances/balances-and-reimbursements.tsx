@@ -41,7 +41,7 @@ export default function BalancesAndReimbursements() {
           <CardTitle>{t('title')}</CardTitle>
           <CardDescription>{t('description')}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-1">
           {isLoading ? (
             <BalancesLoading participantCount={group?.participants.length} />
           ) : (
@@ -58,7 +58,7 @@ export default function BalancesAndReimbursements() {
           <CardTitle>{t('Reimbursements.title')}</CardTitle>
           <CardDescription>{t('Reimbursements.description')}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-1">
           {isLoading ? (
             <ReimbursementsLoading
               participantCount={group?.participants.length}

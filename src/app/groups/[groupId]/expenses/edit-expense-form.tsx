@@ -1,6 +1,7 @@
 'use client'
 import { RuntimeFeatureFlags } from '@/lib/featureFlags'
 import { trpc } from '@/trpc/client'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useRouter } from 'next/navigation'
 import { ExpenseForm } from './expense-form'
 
@@ -33,7 +34,14 @@ export function EditExpenseForm({
   const utils = trpc.useUtils()
   const router = useRouter()
 
-  if (!group || !categories || !expense) return null
+  if (!group || !categories || !expense) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    )
+  }
 
   return (
     <ExpenseForm

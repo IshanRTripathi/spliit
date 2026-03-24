@@ -11,8 +11,9 @@ const remotePatterns = []
 // S3 Storage
 if (process.env.S3_UPLOAD_ENDPOINT) {
   // custom endpoint for providers other than AWS
-  const url = new URL(process.env.S3_UPLOAD_ENDPOINT);
+  const url = new URL(process.env.S3_UPLOAD_ENDPOINT)
   remotePatterns.push({
+    protocol: url.protocol.replace(':', ''),
     hostname: url.hostname,
   })
 } else if (process.env.S3_UPLOAD_BUCKET && process.env.S3_UPLOAD_REGION) {
@@ -22,10 +23,16 @@ if (process.env.S3_UPLOAD_ENDPOINT) {
   })
 }
 
+// Supabase storage host fallback for local/dev consistency
+remotePatterns.push({
+  protocol: 'https',
+  hostname: '*.storage.supabase.co',
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    remotePatterns
+    remotePatterns,
   },
   // Required to run in a codespace (see https://github.com/vercel/next.js/issues/58019)
   experimental: {

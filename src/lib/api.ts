@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { normalizeAuthIdentifier } from '@/lib/auth'
 import { ExpenseFormValues, GroupFormValues } from '@/lib/schemas'
 import {
   ActivityType,
@@ -12,7 +13,55 @@ export function randomId() {
   return nanoid()
 }
 
-export async function createGroup(groupFormValues: GroupFormValues) {
+function randomInviteToken() {
+  return nanoid(24)
+}
+
+function identifierToDisplayName(identifier: string) {
+  const normalized = normalizeAuthIdentifier(identifier)
+  if (normalized.includes('@')) {
+    return normalized.split('@')[0].slice(0, 50) || 'Member'
+  }
+  return normalized.slice(0, 50)
+}
+
+async function getOrCreateUserByIdentifier(identifier: string) {
+  const normalized = normalizeAuthIdentifier(identifier)
+  await prisma.$executeRaw`
+    INSERT INTO "AppUser" ("id", "identifier", "createdAt")
+    VALUES (${randomId()}, ${normalized}, NOW())
+    ON CONFLICT ("identifier") DO NOTHING
+  `
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "AppUser" WHERE "identifier" = ${normalized} LIMIT 1
+  `
+  const user = rows[0]
+  if (!user) throw new Error('Failed to resolve auth user')
+  return user
+}
+
+async function assertGroupAccess(groupId: string, userIdentifier: string) {
+  const normalized = normalizeAuthIdentifier(userIdentifier)
+  const rows = await prisma.$queryRaw<{ has_access: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM "GroupMembership" gm
+      JOIN "AppUser" u ON u."id" = gm."userId"
+      WHERE gm."groupId" = ${groupId}
+        AND u."identifier" = ${normalized}
+    ) as has_access
+  `
+  if (!rows[0]?.has_access) {
+    throw new Error('Unauthorized group access')
+  }
+}
+
+export async function createGroup(
+  groupFormValues: GroupFormValues,
+  userIdentifier: string,
+) {
+  const user = await getOrCreateUserByIdentifier(userIdentifier)
+  const ownerParticipantName = identifierToDisplayName(userIdentifier)
   return prisma.group.create({
     data: {
       id: randomId(),
@@ -22,23 +71,46 @@ export async function createGroup(groupFormValues: GroupFormValues) {
       currencyCode: groupFormValues.currencyCode,
       participants: {
         createMany: {
-          data: groupFormValues.participants.map(({ name }) => ({
-            id: randomId(),
-            name,
-          })),
+          data: [
+            {
+              id: randomId(),
+              name: ownerParticipantName,
+            },
+            ...groupFormValues.participants.map(({ name }) => ({
+              id: randomId(),
+              name,
+            })),
+          ],
         },
       },
     },
     include: { participants: true },
   })
+    .then(async (group) => {
+      await prisma.$executeRaw`
+        UPDATE "Participant"
+        SET "userIdentifier" = ${normalizeAuthIdentifier(userIdentifier)}
+        WHERE "groupId" = ${group.id}
+          AND "name" = ${ownerParticipantName}
+          AND "userIdentifier" IS NULL
+      `
+      await prisma.$executeRaw`
+        INSERT INTO "GroupMembership" ("id", "groupId", "userId", "role", "createdAt")
+        VALUES (${randomId()}, ${group.id}, ${user.id}, 'OWNER', NOW())
+        ON CONFLICT ("groupId", "userId") DO NOTHING
+      `
+      return group
+    })
 }
 
 export async function createExpense(
   expenseFormValues: ExpenseFormValues,
   groupId: string,
+  userIdentifier: string,
   participantId?: string,
 ): Promise<Expense> {
-  const group = await getGroup(groupId)
+  await assertGroupAccess(groupId, userIdentifier)
+  const group = await getGroup(groupId, userIdentifier)
   if (!group) throw new Error(`Invalid group ID: ${groupId}`)
 
   for (const participant of [
@@ -112,8 +184,10 @@ export async function createExpense(
 export async function deleteExpense(
   groupId: string,
   expenseId: string,
+  userIdentifier: string,
   participantId?: string,
 ) {
+  await assertGroupAccess(groupId, userIdentifier)
   const existingExpense = await getExpense(groupId, expenseId)
   await logActivity(groupId, ActivityType.DELETE_EXPENSE, {
     participantId,
@@ -139,13 +213,25 @@ export async function getGroupExpensesParticipants(groupId: string) {
   )
 }
 
-export async function getGroups(groupIds: string[]) {
-  return (
-    await prisma.group.findMany({
-      where: { id: { in: groupIds } },
-      include: { _count: { select: { participants: true } } },
-    })
-  ).map((group) => ({
+export async function getGroupsForUser(userIdentifier: string) {
+  const normalized = normalizeAuthIdentifier(userIdentifier)
+  const groups = await prisma.group.findMany({
+    where: {
+      id: {
+        in: (
+          await prisma.$queryRaw<{ groupId: string }[]>`
+            SELECT gm."groupId"
+            FROM "GroupMembership" gm
+            JOIN "AppUser" u ON u."id" = gm."userId"
+            WHERE u."identifier" = ${normalized}
+          `
+        ).map((row) => row.groupId),
+      },
+    },
+    include: { _count: { select: { participants: true } } },
+    orderBy: { createdAt: 'desc' },
+  })
+  return groups.map((group) => ({
     ...group,
     createdAt: group.createdAt.toISOString(),
   }))
@@ -155,9 +241,11 @@ export async function updateExpense(
   groupId: string,
   expenseId: string,
   expenseFormValues: ExpenseFormValues,
+  userIdentifier: string,
   participantId?: string,
 ) {
-  const group = await getGroup(groupId)
+  await assertGroupAccess(groupId, userIdentifier)
+  const group = await getGroup(groupId, userIdentifier)
   if (!group) throw new Error(`Invalid group ID: ${groupId}`)
 
   const existingExpense = await getExpense(groupId, expenseId)
@@ -287,9 +375,11 @@ export async function updateExpense(
 export async function updateGroup(
   groupId: string,
   groupFormValues: GroupFormValues,
+  userIdentifier: string,
   participantId?: string,
 ) {
-  const existingGroup = await getGroup(groupId)
+  await assertGroupAccess(groupId, userIdentifier)
+  const existingGroup = await getGroup(groupId, userIdentifier)
   if (!existingGroup) throw new Error('Invalid group ID')
 
   await logActivity(groupId, ActivityType.UPDATE_GROUP, { participantId })
@@ -301,32 +391,12 @@ export async function updateGroup(
       information: groupFormValues.information,
       currency: groupFormValues.currency,
       currencyCode: groupFormValues.currencyCode,
-      participants: {
-        deleteMany: existingGroup.participants.filter(
-          (p) => !groupFormValues.participants.some((p2) => p2.id === p.id),
-        ),
-        updateMany: groupFormValues.participants
-          .filter((participant) => participant.id !== undefined)
-          .map((participant) => ({
-            where: { id: participant.id },
-            data: {
-              name: participant.name,
-            },
-          })),
-        createMany: {
-          data: groupFormValues.participants
-            .filter((participant) => participant.id === undefined)
-            .map((participant) => ({
-              id: randomId(),
-              name: participant.name,
-            })),
-        },
-      },
     },
   })
 }
 
-export async function getGroup(groupId: string) {
+export async function getGroup(groupId: string, userIdentifier?: string) {
+  if (userIdentifier) await assertGroupAccess(groupId, userIdentifier)
   return prisma.group.findUnique({
     where: { id: groupId },
     include: { participants: true },
@@ -340,7 +410,9 @@ export async function getCategories() {
 export async function getGroupExpenses(
   groupId: string,
   options?: { offset?: number; length?: number; filter?: string },
+  userIdentifier?: string,
 ) {
+  if (userIdentifier) await assertGroupAccess(groupId, userIdentifier)
   await createRecurringExpenses()
 
   return prisma.expense.findMany({
@@ -375,13 +447,22 @@ export async function getGroupExpenses(
   })
 }
 
-export async function getGroupExpenseCount(groupId: string) {
+export async function getGroupExpenseCount(
+  groupId: string,
+  userIdentifier?: string,
+) {
+  if (userIdentifier) await assertGroupAccess(groupId, userIdentifier)
   return prisma.expense.count({ where: { groupId } })
 }
 
-export async function getExpense(groupId: string, expenseId: string) {
-  return prisma.expense.findUnique({
-    where: { id: expenseId },
+export async function getExpense(
+  groupId: string,
+  expenseId: string,
+  userIdentifier?: string,
+) {
+  if (userIdentifier) await assertGroupAccess(groupId, userIdentifier)
+  return prisma.expense.findFirst({
+    where: { id: expenseId, groupId },
     include: {
       paidBy: true,
       paidFor: true,
@@ -394,8 +475,10 @@ export async function getExpense(groupId: string, expenseId: string) {
 
 export async function getActivities(
   groupId: string,
+  userIdentifier?: string,
   options?: { offset?: number; length?: number },
 ) {
+  if (userIdentifier) await assertGroupAccess(groupId, userIdentifier)
   const activities = await prisma.activity.findMany({
     where: { groupId },
     orderBy: [{ time: 'desc' }],
@@ -420,6 +503,66 @@ export async function getActivities(
         ? expenses.find((expense) => expense.id === activity.expenseId)
         : undefined,
   }))
+}
+
+export async function joinGroupForUser(groupId: string, userIdentifier: string) {
+  const user = await getOrCreateUserByIdentifier(userIdentifier)
+  const normalizedIdentifier = normalizeAuthIdentifier(userIdentifier)
+  const group = await prisma.group.findUnique({ where: { id: groupId } })
+  if (!group) throw new Error('Group not found')
+  await prisma.$executeRaw`
+    INSERT INTO "GroupMembership" ("id", "groupId", "userId", "role", "createdAt")
+    VALUES (${randomId()}, ${groupId}, ${user.id}, 'MEMBER', NOW())
+    ON CONFLICT ("groupId", "userId") DO NOTHING
+  `
+  await prisma.$executeRaw`
+    INSERT INTO "Participant" ("id", "name", "groupId", "userIdentifier")
+    VALUES (${randomId()}, ${identifierToDisplayName(userIdentifier)}, ${groupId}, ${normalizedIdentifier})
+    ON CONFLICT ("groupId", "userIdentifier") DO NOTHING
+  `
+  return group
+}
+
+export async function createGroupInvite(groupId: string, userIdentifier: string) {
+  const user = await getOrCreateUserByIdentifier(userIdentifier)
+  await assertGroupAccess(groupId, userIdentifier)
+  const token = randomInviteToken()
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30)
+  await prisma.$executeRaw`
+    INSERT INTO "GroupInvite" ("id", "token", "groupId", "createdByUserId", "createdAt", "expiresAt")
+    VALUES (${randomId()}, ${token}, ${groupId}, ${user.id}, NOW(), ${expiresAt})
+  `
+  return { token, expiresAt }
+}
+
+export async function getInviteByToken(token: string) {
+  const invites = await prisma.$queryRaw<
+    {
+      token: string
+      groupId: string
+      groupName: string
+      expiresAt: Date | null
+      revokedAt: Date | null
+    }[]
+  >`
+    SELECT gi."token", gi."groupId", g."name" as "groupName", gi."expiresAt", gi."revokedAt"
+    FROM "GroupInvite" gi
+    JOIN "Group" g ON g."id" = gi."groupId"
+    WHERE gi."token" = ${token}
+    LIMIT 1
+  `
+  const invite = invites[0]
+  if (!invite) return null
+  if (invite.revokedAt) return null
+  if (invite.expiresAt && invite.expiresAt.getTime() < Date.now()) return null
+  return invite
+}
+
+export async function acceptInviteByToken(token: string, userIdentifier: string) {
+  const invite = await getInviteByToken(token)
+  if (!invite) throw new Error('Invalid or expired invite')
+  const group = await joinGroupForUser(invite.groupId, userIdentifier)
+  return group
 }
 
 export async function logActivity(

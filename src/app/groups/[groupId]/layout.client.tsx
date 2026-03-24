@@ -5,6 +5,7 @@ import { trpc } from '@/trpc/client'
 import { useTranslations } from 'next-intl'
 import { PropsWithChildren, useEffect } from 'react'
 import { CurrentGroupProvider } from './current-group-context'
+import { GroupExpenseFab } from './group-expense-fab'
 import { GroupHeader } from './group-header'
 import { SaveGroupLocally } from './save-recent-group'
 
@@ -35,6 +36,7 @@ export function GroupLayoutClient({
       <CurrentGroupProvider {...props}>
         <GroupHeader />
         {children}
+        <GroupExpenseFab groupId={groupId} />
       </CurrentGroupProvider>
     )
   }
@@ -43,6 +45,7 @@ export function GroupLayoutClient({
     <CurrentGroupProvider {...props}>
       <GroupHeader />
       {children}
+      <GroupExpenseFab groupId={groupId} />
       <SaveGroupLocally />
     </CurrentGroupProvider>
   )

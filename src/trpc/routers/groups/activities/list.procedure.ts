@@ -1,8 +1,8 @@
 import { getActivities } from '@/lib/api'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const listGroupActivitiesProcedure = baseProcedure
+export const listGroupActivitiesProcedure = authedProcedure
   .input(
     z.object({
       groupId: z.string(),
@@ -10,11 +10,15 @@ export const listGroupActivitiesProcedure = baseProcedure
       limit: z.number().optional().default(5),
     }),
   )
-  .query(async ({ input: { groupId, cursor, limit } }) => {
-    const activities = await getActivities(groupId, {
+  .query(async ({ input: { groupId, cursor, limit }, ctx: { userIdentifier } }) => {
+    const activities = await getActivities(
+      groupId,
+      userIdentifier,
+      {
       offset: cursor,
       length: limit + 1,
-    })
+      },
+    )
     return {
       activities: activities.slice(0, limit),
       hasMore: !!activities[limit],

@@ -34,16 +34,18 @@ export default function GroupExpensesPageClient({
 
   return (
     <>
-      <Card className="mb-4 rounded-none -mx-4 border-x-0 sm:border-x sm:rounded-lg sm:mx-0">
-        <div className="flex flex-1">
+      <Card className="mb-20 sm:mb-4">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <CardHeader className="flex-1 p-4 sm:p-6">
-            <CardTitle>{t('title')}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <span>{t('title')}</span>
+              <ExportButton groupId={groupId} />
+            </CardTitle>
             <CardDescription>{t('description')}</CardDescription>
           </CardHeader>
-          <CardHeader className="p-4 sm:p-6 flex flex-row space-y-0 gap-2">
-            <ExportButton groupId={groupId} />
+          <CardHeader className="px-4 pt-0 pb-2 sm:p-6 flex flex-row space-y-0 gap-2">
             {enableReceiptExtract && <CreateFromReceiptButton />}
-            <Button asChild size="icon">
+            <Button asChild size="icon" className="hidden sm:inline-flex">
               <Link
                 href={`/groups/${groupId}/expenses/create`}
                 title={t('create')}
@@ -58,6 +60,15 @@ export default function GroupExpensesPageClient({
           <ExpenseList />
         </CardContent>
       </Card>
+
+      <div className="fixed bottom-3 left-3 right-3 z-40 sm:hidden">
+        <Button asChild size="lg" className="w-full shadow-lg">
+          <Link href={`/groups/${groupId}/expenses/create`} title={t('create')}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t('create')}
+          </Link>
+        </Button>
+      </div>
 
       <ActiveUserModal groupId={groupId} />
     </>

@@ -1,12 +1,12 @@
 import { getGroup, getGroupExpensesParticipants } from '@/lib/api'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-export const getGroupDetailsProcedure = baseProcedure
+export const getGroupDetailsProcedure = authedProcedure
   .input(z.object({ groupId: z.string().min(1) }))
-  .query(async ({ input: { groupId } }) => {
-    const group = await getGroup(groupId)
+  .query(async ({ input: { groupId }, ctx: { userIdentifier } }) => {
+    const group = await getGroup(groupId, userIdentifier)
     if (!group) {
       throw new TRPCError({
         code: 'NOT_FOUND',

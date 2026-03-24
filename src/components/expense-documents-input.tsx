@@ -24,29 +24,36 @@ import { Loader2, Plus, Trash, X } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { getImageData, usePresignedUpload } from 'next-s3-upload'
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type Props = {
+  groupId: string
   documents: ExpenseFormValues['documents']
   updateDocuments: (documents: ExpenseFormValues['documents']) => void
 }
 
 const MAX_FILE_SIZE = 5 * 1024 ** 2
 
-export function ExpenseDocumentsInput({ documents, updateDocuments }: Props) {
+export function ExpenseDocumentsInput({
+  groupId,
+  documents,
+  updateDocuments,
+}: Props) {
   const locale = useLocale()
   const t = useTranslations('ExpenseDocumentsInput')
   const [pending, setPending] = useState(false)
-  const { FileInput, openFileDialog, uploadToS3 } = usePresignedUpload() // use presigned uploads to addtionally support providers other than AWS
+  const { uploadToS3 } = usePresignedUpload() // use presigned uploads to addtionally support providers other than AWS
   const { toast } = useToast()
+  const captureInputRef = useRef<HTMLInputElement | null>(null)
 
-  const handleFileChange = async (file: File) => {
-    if (file.size > MAX_FILE_SIZE) {
+  const handleFileChange = async (files: File[]) => {
+    const oversizedFile = files.find((file) => file.size > MAX_FILE_SIZE)
+    if (oversizedFile) {
       toast({
         title: t('TooBigToast.title'),
         description: t('TooBigToast.description', {
           maxSize: formatFileSize(MAX_FILE_SIZE, locale),
-          size: formatFileSize(file.size, locale),
+          size: formatFileSize(oversizedFile.size, locale),
         }),
         variant: 'destructive',
       })
@@ -56,10 +63,21 @@ export function ExpenseDocumentsInput({ documents, updateDocuments }: Props) {
     const upload = async () => {
       try {
         setPending(true)
-        const { width, height } = await getImageData(file)
-        if (!width || !height) throw new Error('Cannot get image dimensions')
-        const { url } = await uploadToS3(file)
-        updateDocuments([...documents, { id: randomId(), url, width, height }])
+        const uploaded = await Promise.all(
+          files.map(async (file) => {
+            const { width, height } = await getImageData(file)
+            if (!width || !height) throw new Error('Cannot get image dimensions')
+            const { url } = await uploadToS3(file, {
+              endpoint: {
+                request: {
+                  body: { groupId },
+                },
+              },
+            })
+            return { id: randomId(), url, width, height }
+          }),
+        )
+        updateDocuments([...documents, ...uploaded])
       } catch (err) {
         console.error(err)
         toast({
@@ -84,7 +102,19 @@ export function ExpenseDocumentsInput({ documents, updateDocuments }: Props) {
 
   return (
     <div>
-      <FileInput onChange={handleFileChange} accept="image/jpeg,image/png" />
+      <input
+        ref={captureInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? [])
+          if (files.length > 0) handleFileChange(files)
+          event.currentTarget.value = ''
+        }}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 [&_*]:aspect-square">
         {documents.map((doc) => (
@@ -102,7 +132,7 @@ export function ExpenseDocumentsInput({ documents, updateDocuments }: Props) {
           <Button
             variant="secondary"
             type="button"
-            onClick={openFileDialog}
+            onClick={() => captureInputRef.current?.click()}
             className="w-full h-full"
             disabled={pending}
           >

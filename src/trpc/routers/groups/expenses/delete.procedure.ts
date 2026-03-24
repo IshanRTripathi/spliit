@@ -1,8 +1,8 @@
 import { deleteExpense } from '@/lib/api'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const deleteGroupExpenseProcedure = baseProcedure
+export const deleteGroupExpenseProcedure = authedProcedure
   .input(
     z.object({
       expenseId: z.string().min(1),
@@ -10,7 +10,12 @@ export const deleteGroupExpenseProcedure = baseProcedure
       participantId: z.string().optional(),
     }),
   )
-  .mutation(async ({ input: { expenseId, groupId, participantId } }) => {
-    await deleteExpense(groupId, expenseId, participantId)
+  .mutation(
+    async ({
+      input: { expenseId, groupId, participantId },
+      ctx: { userIdentifier },
+    }) => {
+      await deleteExpense(groupId, expenseId, userIdentifier, participantId)
     return {}
-  })
+    },
+  )

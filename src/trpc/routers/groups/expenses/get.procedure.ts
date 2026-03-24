@@ -1,12 +1,12 @@
 import { getExpense } from '@/lib/api'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 
-export const getGroupExpenseProcedure = baseProcedure
+export const getGroupExpenseProcedure = authedProcedure
   .input(z.object({ groupId: z.string().min(1), expenseId: z.string().min(1) }))
-  .query(async ({ input: { groupId, expenseId } }) => {
-    const expense = await getExpense(groupId, expenseId)
+  .query(async ({ input: { groupId, expenseId }, ctx: { userIdentifier } }) => {
+    const expense = await getExpense(groupId, expenseId, userIdentifier)
     if (!expense) {
       throw new TRPCError({
         code: 'NOT_FOUND',

@@ -1,8 +1,8 @@
 import { getGroupExpenses } from '@/lib/api'
-import { baseProcedure } from '@/trpc/init'
+import { authedProcedure } from '@/trpc/init'
 import { z } from 'zod'
 
-export const listGroupExpensesProcedure = baseProcedure
+export const listGroupExpensesProcedure = authedProcedure
   .input(
     z.object({
       groupId: z.string().min(1),
@@ -11,12 +11,16 @@ export const listGroupExpensesProcedure = baseProcedure
       filter: z.string().optional(),
     }),
   )
-  .query(async ({ input: { groupId, cursor = 0, limit = 10, filter } }) => {
+  .query(
+    async ({
+      input: { groupId, cursor = 0, limit = 10, filter },
+      ctx: { userIdentifier },
+    }) => {
     const expenses = await getGroupExpenses(groupId, {
       offset: cursor,
       length: limit + 1,
       filter,
-    })
+    }, userIdentifier)
     return {
       expenses: expenses.slice(0, limit).map((expense) => ({
         ...expense,
@@ -26,4 +30,5 @@ export const listGroupExpensesProcedure = baseProcedure
       hasMore: !!expenses[limit],
       nextCursor: cursor + limit,
     }
-  })
+    },
+  )

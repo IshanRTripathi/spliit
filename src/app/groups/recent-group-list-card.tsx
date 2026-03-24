@@ -1,5 +1,4 @@
 import {
-  RecentGroup,
   archiveGroup,
   deleteRecentGroup,
   starGroup,
@@ -29,7 +28,7 @@ export function RecentGroupListCard({
   isArchived,
   refreshGroupsFromStorage,
 }: {
-  group: RecentGroup
+  group: { id: string; name: string }
   groupDetail?: AppRouterOutput['groups']['list']['groups'][number]
   isStarred: boolean
   isArchived: boolean

@@ -1,33 +1,22 @@
 'use client'
 import { AddGroupByUrlButton } from '@/app/groups/add-group-by-url-button'
 import {
-  RecentGroups,
   getArchivedGroups,
-  getRecentGroups,
   getStarredGroups,
 } from '@/app/groups/recent-groups-helpers'
 import { Button } from '@/components/ui/button'
-import { getGroups } from '@/lib/api'
 import { trpc } from '@/trpc/client'
 import { AppRouterOutput } from '@/trpc/routers/_app'
 import { Loader2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { PropsWithChildren, useEffect, useState } from 'react'
+import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
 import { RecentGroupListCard } from './recent-group-list-card'
 
 export type RecentGroupsState =
   | { status: 'pending' }
   | {
       status: 'partial'
-      groups: RecentGroups
-      starredGroups: string[]
-      archivedGroups: string[]
-    }
-  | {
-      status: 'complete'
-      groups: RecentGroups
-      groupsDetails: Awaited<ReturnType<typeof getGroups>>
       starredGroups: string[]
       archivedGroups: string[]
     }
@@ -37,7 +26,7 @@ function sortGroups({
   starredGroups,
   archivedGroups,
 }: {
-  groups: RecentGroups
+  groups: AppRouterOutput['groups']['list']['groups']
   starredGroups: string[]
   archivedGroups: string[]
 }) {
@@ -64,12 +53,10 @@ export function RecentGroupList() {
   const [state, setState] = useState<RecentGroupsState>({ status: 'pending' })
 
   function loadGroups() {
-    const groupsInStorage = getRecentGroups()
     const starredGroups = getStarredGroups()
     const archivedGroups = getArchivedGroups()
     setState({
       status: 'partial',
-      groups: groupsInStorage,
       starredGroups,
       archivedGroups,
     })
@@ -83,7 +70,6 @@ export function RecentGroupList() {
 
   return (
     <RecentGroupList_
-      groups={state.groups}
       starredGroups={state.starredGroups}
       archivedGroups={state.archivedGroups}
       refreshGroupsFromStorage={() => loadGroups()}
@@ -92,20 +78,26 @@ export function RecentGroupList() {
 }
 
 function RecentGroupList_({
-  groups,
   starredGroups,
   archivedGroups,
   refreshGroupsFromStorage,
 }: {
-  groups: RecentGroups
   starredGroups: string[]
   archivedGroups: string[]
   refreshGroupsFromStorage: () => void
 }) {
   const t = useTranslations('Groups')
-  const { data, isLoading } = trpc.groups.list.useQuery({
-    groupIds: groups.map((group) => group.id),
-  })
+  const { data, isLoading } = trpc.groups.list.useQuery()
+  const dataGroups = data?.groups ?? []
+  const sortedGroups = useMemo(
+    () =>
+      sortGroups({
+        groups: dataGroups,
+        starredGroups,
+        archivedGroups,
+      }),
+    [dataGroups, starredGroups, archivedGroups],
+  )
 
   if (isLoading || !data) {
     return (
@@ -134,11 +126,7 @@ function RecentGroupList_({
     )
   }
 
-  const { starredGroupInfo, groupInfo, archivedGroupInfo } = sortGroups({
-    groups,
-    starredGroups,
-    archivedGroups,
-  })
+  const { starredGroupInfo, groupInfo, archivedGroupInfo } = sortedGroups
 
   return (
     <GroupsPage reload={refreshGroupsFromStorage}>
@@ -193,7 +181,7 @@ function GroupList({
   archivedGroups,
   refreshGroupsFromStorage,
 }: {
-  groups: RecentGroups
+  groups: AppRouterOutput['groups']['list']['groups']
   groupDetails?: AppRouterOutput['groups']['list']['groups']
   starredGroups: string[]
   archivedGroups: string[]
@@ -224,19 +212,30 @@ function GroupsPage({
   const t = useTranslations('Groups')
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h1 className="font-bold text-2xl flex-1">
-          <Link href="/groups">{t('myGroups')}</Link>
-        </h1>
-        <div className="flex gap-2">
-          <AddGroupByUrlButton reload={reload} />
-          <Button asChild>
-            <Link href="/groups/create">
-              {/* <Plus className="w-4 h-4 mr-2" /> */}
-              {t('create')}
-            </Link>
-          </Button>
+      <section className="page-section mb-4 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="font-bold text-2xl flex-1">
+              <Link href="/groups">{t('myGroups')}</Link>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Track balances, split bills, and settle up quickly.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <AddGroupByUrlButton reload={reload} />
+            <Button asChild>
+              <Link href="/groups/create">
+                {t('create')}
+              </Link>
+            </Button>
+          </div>
         </div>
+      </section>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <h2 className="font-semibold text-base sm:text-lg flex-1">
+          <Link href="/groups">{t('myGroups')}</Link>
+        </h2>
       </div>
       <div>{children}</div>
     </>

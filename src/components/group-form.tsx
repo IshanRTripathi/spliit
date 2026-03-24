@@ -74,11 +74,7 @@ export function GroupForm({
           information: '',
           currency: '',
           currencyCode: process.env.NEXT_PUBLIC_DEFAULT_CURRENCY_CODE || 'USD', // TODO: If NEXT_PUBLIC_DEFAULT_CURRENCY_CODE, is not set, determine the default currency code based on locale
-          participants: [
-            { name: t('Participants.John') },
-            { name: t('Participants.Jane') },
-            { name: t('Participants.Jack') },
-          ],
+          participants: [],
         },
   })
   const { fields, append, remove } = useFieldArray({
@@ -236,80 +232,92 @@ export function GroupForm({
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('Participants.title')}</CardTitle>
-            <CardDescription>{t('Participants.description')}</CardDescription>
+            <CardDescription>
+              {group
+                ? 'Participants are linked to invited users who joined this group.'
+                : 'Participants are added when invited users join your group.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col gap-2">
-              {fields.map((item, index) => (
-                <li key={item.key}>
-                  <FormField
-                    control={form.control}
-                    name={`participants.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="sr-only">
-                          Participant #{index + 1}
-                        </FormLabel>
-                        <FormControl>
-                          <div className="flex gap-2">
-                            <Input
-                              className="text-base"
-                              {...field}
-                              placeholder={t('Participants.new')}
-                            />
-                            {item.id &&
-                            protectedParticipantIds.includes(item.id) ? (
-                              <HoverCard>
-                                <HoverCardTrigger>
-                                  <Button
-                                    variant="ghost"
-                                    className="text-destructive-"
-                                    type="button"
-                                    size="icon"
-                                    disabled
+            {group ? (
+              <ul className="flex flex-col gap-2">
+                {fields.map((item, index) => (
+                  <li key={item.key}>
+                    <FormField
+                      control={form.control}
+                      name={`participants.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="sr-only">
+                            Participant #{index + 1}
+                          </FormLabel>
+                          <FormControl>
+                            <div className="flex gap-2">
+                              <Input
+                                className="text-base"
+                                {...field}
+                                placeholder={t('Participants.new')}
+                              />
+                              {item.id &&
+                              protectedParticipantIds.includes(item.id) ? (
+                                <HoverCard>
+                                  <HoverCardTrigger>
+                                    <Button
+                                      variant="ghost"
+                                      className="text-destructive-"
+                                      type="button"
+                                      size="icon"
+                                      disabled
+                                    >
+                                      <Trash2 className="w-4 h-4 text-destructive opacity-50" />
+                                    </Button>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent
+                                    align="end"
+                                    className="text-sm"
                                   >
-                                    <Trash2 className="w-4 h-4 text-destructive opacity-50" />
-                                  </Button>
-                                </HoverCardTrigger>
-                                <HoverCardContent
-                                  align="end"
-                                  className="text-sm"
+                                    {t('Participants.protectedParticipant')}
+                                  </HoverCardContent>
+                                </HoverCard>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  className="text-destructive"
+                                  onClick={() => remove(index)}
+                                  type="button"
+                                  size="icon"
                                 >
-                                  {t('Participants.protectedParticipant')}
-                                </HoverCardContent>
-                              </HoverCard>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => remove(index)}
-                                type="button"
-                                size="icon"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </li>
-              ))}
-            </ul>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Create the group first, then share the invite link to add members.
+              </p>
+            )}
           </CardContent>
-          <CardFooter>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                append({ name: '' })
-              }}
-              type="button"
-            >
-              {t('Participants.add')}
-            </Button>
-          </CardFooter>
+          {group ? (
+            <CardFooter>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  append({ name: '' })
+                }}
+                type="button"
+              >
+                {t('Participants.add')}
+              </Button>
+            </CardFooter>
+          ) : null}
         </Card>
 
         <Card className="mb-4">

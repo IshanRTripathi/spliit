@@ -17,16 +17,14 @@ export function ActivityPageClient() {
   const t = useTranslations('Activity')
 
   return (
-    <>
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('title')}</CardTitle>
-          <CardDescription>{t('description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col space-y-4">
-          <ActivityList />
-        </CardContent>
-      </Card>
-    </>
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>{t('title')}</CardTitle>
+        <CardDescription>{t('description')}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col space-y-4 pt-1">
+        <ActivityList />
+      </CardContent>
+    </Card>
   )
 }

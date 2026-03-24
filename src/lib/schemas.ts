@@ -16,7 +16,7 @@ export const groupFormSchema = z
           name: z.string().min(2, 'min2').max(50, 'max50'),
         }),
       )
-      .min(1),
+      .default([]),
   })
   .superRefine(({ participants }, ctx) => {
     participants.forEach((participant, i) => {
