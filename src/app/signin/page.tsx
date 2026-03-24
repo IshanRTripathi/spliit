@@ -7,6 +7,8 @@ import {
   AUTH_USER_COOKIE,
   normalizeAuthIdentifier,
 } from '@/lib/auth'
+import { trpc } from '@/trpc/client'
+import { TRPCClientError } from '@trpc/client'
 import { z } from 'zod'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -40,6 +42,25 @@ const storedUsersSchema = z.array(
   }),
 )
 
+function syncLocalUserCache(identifier: string, password: string) {
+  const normalized = normalizeAuthIdentifier(identifier)
+  const parsedUsers = storedUsersSchema.safeParse(
+    JSON.parse(
+      typeof window !== 'undefined'
+        ? localStorage.getItem(USERS_KEY) ?? '[]'
+        : '[]',
+    ),
+  )
+  const users: StoredUser[] = parsedUsers.success ? parsedUsers.data : []
+  const idx = users.findIndex(
+    (u) => normalizeAuthIdentifier(u.identifier) === normalized,
+  )
+  const entry = { identifier: normalized, password }
+  if (idx >= 0) users[idx] = entry
+  else users.push(entry)
+  localStorage.setItem(USERS_KEY, JSON.stringify(users))
+}
+
 export default function SignInPage() {
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get('next')
@@ -49,6 +70,9 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const registerMut = trpc.auth.register.useMutation()
+  const signInMut = trpc.auth.signIn.useMutation()
 
   const title = useMemo(
     () => (mode === 'signin' ? 'Sign in to continue' : 'Create local account'),
@@ -61,7 +85,7 @@ export default function SignInPage() {
     }
   }, [nextUrl])
 
-  const submit = () => {
+  const submit = async () => {
     setError('')
     setSuccess('')
 
@@ -72,34 +96,38 @@ export default function SignInPage() {
     }
 
     const normalizedIdentifier = normalizeAuthIdentifier(parsed.data.identifier)
-    const parsedUsers = storedUsersSchema.safeParse(
-      JSON.parse(localStorage.getItem(USERS_KEY) ?? '[]'),
-    )
-    const users: StoredUser[] = parsedUsers.success ? parsedUsers.data : []
-    const existingUser = users.find(
-      (user) => normalizeAuthIdentifier(user.identifier) === normalizedIdentifier,
-    )
 
     if (mode === 'register') {
-      if (existingUser) {
-        setError('Account already exists. Try signing in.')
-        return
+      try {
+        await registerMut.mutateAsync({
+          identifier: normalizedIdentifier,
+          password: parsed.data.password,
+        })
+        syncLocalUserCache(normalizedIdentifier, parsed.data.password)
+        setMode('signin')
+        setSuccess('Account created. You can now sign in.')
+      } catch (e) {
+        if (e instanceof TRPCClientError) {
+          setError(e.message)
+        } else {
+          setError('Could not create account')
+        }
       }
-      users.push({ identifier: normalizedIdentifier, password: parsed.data.password })
-      localStorage.setItem(USERS_KEY, JSON.stringify(users))
-      setMode('signin')
-      setSuccess('Account created. You can now sign in.')
       return
     }
 
-    if (!existingUser || existingUser.password !== parsed.data.password) {
+    try {
+      const result = await signInMut.mutateAsync({
+        identifier: normalizedIdentifier,
+        password: parsed.data.password,
+      })
+      syncLocalUserCache(result.identifier, parsed.data.password)
+      document.cookie = `${AUTH_COOKIE}=1; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
+      document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(result.identifier)}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
+      window.location.href = nextUrl || '/groups'
+    } catch {
       setError('Invalid credentials')
-      return
     }
-
-    document.cookie = `${AUTH_COOKIE}=1; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
-    document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(normalizedIdentifier)}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
-    window.location.href = nextUrl || '/groups'
   }
 
   return (
@@ -107,7 +135,8 @@ export default function SignInPage() {
       <section className="page-section p-5 sm:p-6">
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Local auth MVP without external provider.
+          Credentials are stored in the database; this device also keeps a local
+          cache for convenience.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -135,7 +164,11 @@ export default function SignInPage() {
         {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
         {success ? <p className="mt-3 text-sm text-primary">{success}</p> : null}
 
-        <Button className="mt-5 w-full" onClick={submit}>
+        <Button
+          className="mt-5 w-full"
+          onClick={() => void submit()}
+          disabled={registerMut.isPending || signInMut.isPending}
+        >
           {mode === 'signin' ? 'Sign in' : 'Create account'}
         </Button>
 

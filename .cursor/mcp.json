@@ -3,7 +3,7 @@
     "stitch": {
       "url": "https://stitch.googleapis.com/mcp",
       "headers": {
-        "X-Goog-Api-Key": "AIzaSyBOqYZI58lPlAucPaRVSIpc7Y8Wg83uvbo"
+        "X-Goog-Api-Key": "${env:CURSOR_STITCH_API_KEY}"
       }
     }
   }

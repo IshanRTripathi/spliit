@@ -28,6 +28,7 @@ model Group {
 model AppUser {
   id         String            @id @default(cuid())
   identifier String            @unique
+  password   String?
   createdAt  DateTime          @default(now())
   memberships GroupMembership[]
 }
