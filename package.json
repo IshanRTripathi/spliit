@@ -15,7 +15,8 @@
     "build-image": "./scripts/build-image.sh",
     "start-container": "docker compose --env-file container.env up",
     "test": "jest",
-    "generate-currency-data": "ts-node -T ./src/scripts/generateCurrencyData.ts"
+    "generate-currency-data": "ts-node -T ./src/scripts/generateCurrencyData.ts",
+    "mcp:start": "node mcp-server/index.mjs"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "^0.5.4",

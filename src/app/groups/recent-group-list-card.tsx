@@ -44,18 +44,18 @@ export function RecentGroupListCard({
     <li key={group.id}>
       <Button
         variant="secondary"
-        className="h-fit w-full py-3 rounded-lg border bg-card shadow-sm"
+        className="h-fit w-full rounded-2xl border border-border/80 bg-card/95 py-3.5 shadow-[0_8px_24px_-20px_rgba(0,0,0,0.55)]"
         asChild
       >
         <div
-          className="text-base"
+          className="text-base px-1"
           onClick={() => router.push(`/groups/${group.id}`)}
         >
-          <div className="w-full flex flex-col gap-1">
-            <div className="text-base flex gap-2 justify-between">
+          <div className="w-full flex flex-col gap-2">
+            <div className="text-base flex gap-2 justify-between items-start">
               <Link
                 href={`/groups/${group.id}`}
-                className="flex-1 overflow-hidden text-ellipsis"
+                className="flex-1 overflow-hidden text-ellipsis font-semibold text-left"
               >
                 {group.name}
               </Link>
@@ -63,7 +63,7 @@ export function RecentGroupListCard({
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="-my-3 -ml-3 -mr-1.5"
+                  className="-my-2 -ml-1 -mr-1"
                   onClick={(event) => {
                     event.stopPropagation()
                     if (isStarred) {
@@ -86,7 +86,7 @@ export function RecentGroupListCard({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="-my-3 -mr-3 -ml-1.5"
+                      className="-my-2 -mr-1 -ml-1"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
@@ -125,7 +125,7 @@ export function RecentGroupListCard({
                 </DropdownMenu>
               </span>
             </div>
-            <div className="text-muted-foreground font-normal text-xs">
+            <div className="text-muted-foreground font-normal text-xs sm:text-sm">
               {groupDetail ? (
                 <div className="w-full flex items-center justify-between">
                   <div className="flex items-center">

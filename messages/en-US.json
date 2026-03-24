@@ -1,18 +1,17 @@
 {
   "Homepage": {
     "title": "Share <strong>Expenses</strong> with <strong>Friends & Family</strong>",
-    "description": "Welcome to your new <strong>Spliit</strong> instance !",
+    "description": "Welcome to your new <strong>Expense Sharing</strong> instance!",
     "button": {
-      "groups": "Go to groups",
-      "github": "GitHub"
+      "groups": "Go to groups"
     }
   },
   "Header": {
     "groups": "Groups"
   },
   "Footer": {
-    "madeIn": "Made in Montréal, Québec 🇨🇦",
-    "builtBy": "Built by <author>Sebastien Castiel</author> and <source>contributors</source>"
+    "madeIn": "Self-hosted and customizable",
+    "builtBy": "Powered by your deployment"
   },
   "Expenses": {
     "title": "Expenses",

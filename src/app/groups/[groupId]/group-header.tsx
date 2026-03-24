@@ -10,8 +10,8 @@ export const GroupHeader = () => {
   const { isLoading, groupId, group } = useCurrentGroup()
 
   return (
-    <div className="flex flex-col justify-between gap-3">
-      <h1 className="font-bold text-2xl">
+    <div className="page-section flex flex-col justify-between gap-4 p-4 sm:p-5">
+      <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
         <Link href={`/groups/${groupId}`}>
           {isLoading ? (
             <Skeleton className="mt-1.5 mb-1.5 h-5 w-32" />
@@ -21,8 +21,10 @@ export const GroupHeader = () => {
         </Link>
       </h1>
 
-      <div className="flex gap-2 justify-between">
-        <GroupTabs groupId={groupId} />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <GroupTabs groupId={groupId} />
+        </div>
         {group && <ShareButton group={group} />}
       </div>
     </div>

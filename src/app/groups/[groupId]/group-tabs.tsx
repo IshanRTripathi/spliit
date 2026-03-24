@@ -17,12 +17,12 @@ export function GroupTabs({ groupId }: Props) {
   return (
     <Tabs
       value={value}
-      className="[&>*]:border overflow-x-auto"
+      className="w-full overflow-x-auto"
       onValueChange={(value) => {
         router.push(`/groups/${groupId}/${value}`)
       }}
     >
-      <TabsList>
+      <TabsList className="w-max min-w-full justify-start border border-border/70 bg-card/80">
         <TabsTrigger value="expenses">{t('Expenses.title')}</TabsTrigger>
         <TabsTrigger value="balances">{t('Balances.title')}</TabsTrigger>
         <TabsTrigger value="information">{t('Information.title')}</TabsTrigger>
