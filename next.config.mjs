@@ -29,6 +29,12 @@ remotePatterns.push({
   hostname: '*.storage.supabase.co',
 })
 
+// Supabase public object host for Supabase Storage public URLs
+remotePatterns.push({
+  protocol: 'https',
+  hostname: '*.supabase.co',
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {

@@ -1239,31 +1239,27 @@ export function ExpenseForm({
           </CardContent>
         </Card>
 
-        {runtimeFeatureFlags.enableExpenseDocuments && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle className="flex justify-between">
-                <span>{t('attachDocuments')}</span>
-              </CardTitle>
-              <CardDescription>
-                {t(`${sExpense}.attachDescription`)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="documents"
-                render={({ field }) => (
-                  <ExpenseDocumentsInput
-                    groupId={group.id}
-                    documents={field.value}
-                    updateDocuments={field.onChange}
-                  />
-                )}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="flex justify-between">
+              <span>{t('attachDocuments')}</span>
+            </CardTitle>
+            <CardDescription>{t(`${sExpense}.attachDescription`)}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="documents"
+              render={({ field }) => (
+                <ExpenseDocumentsInput
+                  groupId={group.id}
+                  documents={field.value}
+                  updateDocuments={field.onChange}
+                />
+              )}
+            />
+          </CardContent>
+        </Card>
 
         <div className="sticky bottom-2 z-30 mt-4 rounded-2xl border border-border/80 bg-background/95 p-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
           <div className="flex gap-2">

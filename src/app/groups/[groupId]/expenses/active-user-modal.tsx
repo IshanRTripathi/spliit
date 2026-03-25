@@ -22,6 +22,7 @@ import { useMediaQuery } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 import { trpc } from '@/trpc/client'
 import { AppRouterOutput } from '@/trpc/routers/_app'
+import { AUTH_USER_COOKIE, normalizeAuthIdentifier } from '@/lib/auth'
 import { useTranslations } from 'next-intl'
 import { ComponentProps, useEffect, useState } from 'react'
 
@@ -36,11 +37,48 @@ export function ActiveUserModal({ groupId }: { groupId: string }) {
   useEffect(() => {
     if (!group) return
 
-    const tempUser = localStorage.getItem(`newGroup-activeUser`)
     const activeUser = localStorage.getItem(`${group.id}-activeUser`)
-    if (!tempUser && !activeUser) {
-      setOpen(true)
+
+    // If there's already a selection, keep it.
+    // If it's "None" (unset), prefer selecting the signed-in user.
+    const shouldAutoSelect =
+      !activeUser || activeUser === 'None' || activeUser === 'none'
+    if (!shouldAutoSelect) return
+
+    const cookieValue = document.cookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${AUTH_USER_COOKIE}=`))
+      ?.split('=')
+      .slice(1)
+      .join('=')
+
+    if (!cookieValue) {
+      // No signed-in user identity available; keep the original "who are you" flow.
+      const tempUser = localStorage.getItem(`newGroup-activeUser`)
+      if (!tempUser && !activeUser) setOpen(true)
+      if (!tempUser && activeUser === 'None') setOpen(true)
+      return
     }
+
+    const normalizedIdentifier = normalizeAuthIdentifier(
+      decodeURIComponent(cookieValue),
+    )
+    const signedInDisplayName = normalizedIdentifier.includes('@')
+      ? normalizedIdentifier.split('@')[0].slice(0, 50) || 'Member'
+      : normalizedIdentifier.slice(0, 50)
+
+    const participant = group.participants.find(
+      (p) => p.name === signedInDisplayName,
+    )
+    if (!participant) {
+      const tempUser = localStorage.getItem(`newGroup-activeUser`)
+      if (!tempUser) setOpen(true)
+      return
+    }
+
+    localStorage.setItem(`${group.id}-activeUser`, participant.id)
+    setOpen(false)
   }, [group])
 
   function updateOpen(open: boolean) {

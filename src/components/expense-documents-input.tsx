@@ -25,6 +25,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { getImageData, usePresignedUpload } from 'next-s3-upload'
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
+import { supabaseS3UrlToPublicObjectUrl } from '@/lib/supabase-storage'
 
 type Props = {
   groupId: string
@@ -45,6 +46,9 @@ export function ExpenseDocumentsInput({
   const { uploadToS3 } = usePresignedUpload() // use presigned uploads to addtionally support providers other than AWS
   const { toast } = useToast()
   const captureInputRef = useRef<HTMLInputElement | null>(null)
+  const [previewById, setPreviewById] = useState<Record<string, string>>(
+    {},
+  )
 
   const handleFileChange = async (files: File[]) => {
     const oversizedFile = files.find((file) => file.size > MAX_FILE_SIZE)
@@ -61,10 +65,22 @@ export function ExpenseDocumentsInput({
     }
 
     const upload = async () => {
+      let created: { id: string; file: File; previewUrl: string }[] = []
       try {
         setPending(true)
+        created = files.map((file) => ({
+          id: randomId(),
+          file,
+          previewUrl: URL.createObjectURL(file),
+        }))
+
+        setPreviewById((prev) => ({
+          ...prev,
+          ...Object.fromEntries(created.map((c) => [c.id, c.previewUrl])),
+        }))
+
         const uploaded = await Promise.all(
-          files.map(async (file) => {
+          created.map(async ({ file, id }) => {
             const { width, height } = await getImageData(file)
             if (!width || !height) throw new Error('Cannot get image dimensions')
             const { url } = await uploadToS3(file, {
@@ -74,12 +90,23 @@ export function ExpenseDocumentsInput({
                 },
               },
             })
-            return { id: randomId(), url, width, height }
+            const publicUrl = supabaseS3UrlToPublicObjectUrl(url)
+            return { id, url: publicUrl, width, height }
           }),
         )
         updateDocuments([...documents, ...uploaded])
       } catch (err) {
         console.error(err)
+        // Revoke previews created for this failed batch
+        // (successful uploads keep previews so the UI renders instantly)
+        if (created) {
+          for (const c of created) URL.revokeObjectURL(c.previewUrl)
+          setPreviewById((prev) => {
+            const next = { ...prev }
+            for (const c of created!) delete next[c.id]
+            return next
+          })
+        }
         toast({
           title: t('ErrorToast.title'),
           description: t('ErrorToast.description'),
@@ -98,6 +125,17 @@ export function ExpenseDocumentsInput({
       }
     }
     upload()
+  }
+
+  const deleteDocument = (document: ExpenseFormValues['documents'][number]) => {
+    const previewUrl = previewById[document.id]
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewById((prev) => {
+      const next = { ...prev }
+      delete next[document.id]
+      return next
+    })
+    updateDocuments(documents.filter((d) => d.id !== document.id))
   }
 
   return (
@@ -122,9 +160,8 @@ export function ExpenseDocumentsInput({
             key={doc.id}
             document={doc}
             documents={documents}
-            deleteDocument={(document) => {
-              updateDocuments(documents.filter((d) => d.id !== document.id))
-            }}
+            previewUrl={previewById[doc.id]}
+            deleteDocument={deleteDocument}
           />
         ))}
 
@@ -152,10 +189,12 @@ export function DocumentThumbnail({
   document,
   documents,
   deleteDocument,
+  previewUrl,
 }: {
   document: ExpenseFormValues['documents'][number]
   documents: ExpenseFormValues['documents']
   deleteDocument: (document: ExpenseFormValues['documents'][number]) => void
+  previewUrl?: string
 }) {
   const [open, setOpen] = useState(false)
   const [api, setApi] = useState<CarouselApi>()
@@ -183,7 +222,7 @@ export function DocumentThumbnail({
             width={300}
             height={300}
             className="object-contain"
-            src={document.url}
+            src={previewUrl ?? document.url}
             alt=""
           />
         </Button>
@@ -226,7 +265,7 @@ export function DocumentThumbnail({
                 <CarouselItem key={index}>
                   <Image
                     className="object-contain w-[calc(100vw-32px)] h-[calc(100dvh-32px-40px-16px-48px)] sm:w-[calc(100vw-32px-32px)] sm:h-[calc(100dvh-32px-40px-16px-32px-48px)]"
-                    src={document.url}
+                    src={previewUrl ?? document.url}
                     width={document.width}
                     height={document.height}
                     alt=""

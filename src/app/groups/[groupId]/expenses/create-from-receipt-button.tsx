@@ -40,6 +40,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { PropsWithChildren, ReactNode, useEffect, useRef, useState } from 'react'
 import { useCurrentGroup } from '../current-group-context'
+import { supabaseS3UrlToPublicObjectUrl } from '@/lib/supabase-storage'
 
 const MAX_FILE_SIZE = 5 * 1024 ** 2
 
@@ -110,8 +111,23 @@ function ReceiptDialogContent() {
   const captureInputRef = useRef<HTMLInputElement | null>(null)
   const [receiptInfo, setReceiptInfo] = useState<
     | null
-    | (ReceiptExtractedInfo & { url: string; width?: number; height?: number })
+    | (ReceiptExtractedInfo & {
+        url: string
+        width?: number
+        height?: number
+        previewUrl?: string
+      })
   >(null)
+  const receiptPreviewUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (receiptPreviewUrlRef.current) {
+        URL.revokeObjectURL(receiptPreviewUrlRef.current)
+      }
+      receiptPreviewUrlRef.current = null
+    }
+  }, [])
 
   const handleFileChange = async (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
@@ -126,6 +142,12 @@ function ReceiptDialogContent() {
       return
     }
 
+    const previewUrl = URL.createObjectURL(file)
+    if (receiptPreviewUrlRef.current) {
+      URL.revokeObjectURL(receiptPreviewUrlRef.current)
+    }
+    receiptPreviewUrlRef.current = previewUrl
+
     const upload = async () => {
       try {
         setPending(true)
@@ -137,13 +159,28 @@ function ReceiptDialogContent() {
             },
           },
         })
+        const publicUrl = supabaseS3UrlToPublicObjectUrl(url)
+
         console.log('Extracting information from receipt…')
         const { amount, categoryId, date, title } =
-          await extractExpenseInformationFromImage(url)
+          await extractExpenseInformationFromImage(publicUrl)
         const { width, height } = await getImageData(file)
-        setReceiptInfo({ amount, categoryId, date, title, url, width, height })
+        setReceiptInfo({
+          amount,
+          categoryId,
+          date,
+          title,
+          url: publicUrl,
+          width,
+          height,
+          previewUrl,
+        })
       } catch (err) {
         console.error(err)
+        if (receiptPreviewUrlRef.current) {
+          URL.revokeObjectURL(receiptPreviewUrlRef.current)
+          receiptPreviewUrlRef.current = null
+        }
         toast({
           title: t('ErrorToast.title'),
           description: t('ErrorToast.description'),
@@ -198,7 +235,7 @@ function ReceiptDialogContent() {
             ) : receiptInfo ? (
               <div className="absolute top-2 left-2 bottom-2 right-2">
                 <Image
-                  src={receiptInfo.url}
+                  src={receiptInfo.previewUrl ?? receiptInfo.url}
                   width={receiptInfo.width}
                   height={receiptInfo.height}
                   className="w-full h-full m-0 object-contain drop-shadow-lg"
