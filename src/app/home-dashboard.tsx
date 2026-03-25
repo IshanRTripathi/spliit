@@ -80,10 +80,12 @@ export function HomeDashboard() {
     setActiveParticipantId(stored)
   }, [lastGroupId, participants])
 
+  const [showBalances, setShowBalances] = useState(false)
+  
   const { data: balancesData, isLoading: balancesAreLoading } =
     trpc.groups.balances.list.useQuery(
       { groupId: lastGroupId ?? '' },
-      { enabled: !!lastGroupId },
+      { enabled: !!lastGroupId && showBalances },
     )
 
   const currency = useMemo(() => {
@@ -178,26 +180,37 @@ export function HomeDashboard() {
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/10 border border-white/15 p-3 neumorphic-recessed">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
-                You are owed
-              </p>
-              <p className="text-xl font-extrabold">
-                {balancesAreLoading || !currency
-                  ? '...'
-                  : formatCurrency(currency, owedTotalMinor, locale)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/10 border border-white/15 p-3 neumorphic-recessed">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
-                You owe
-              </p>
-              <p className="text-xl font-extrabold">
-                {balancesAreLoading || !currency
-                  ? '...'
-                  : formatCurrency(currency, oweTotalMinor, locale)}
-              </p>
-            </div>
+            {showBalances ? (
+              <>
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-3 neumorphic-recessed">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
+                    You are owed
+                  </p>
+                  <p className="text-xl font-extrabold">
+                    {balancesAreLoading || !currency
+                      ? '...'
+                      : formatCurrency(currency, owedTotalMinor, locale)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-3 neumorphic-recessed">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">
+                    You owe
+                  </p>
+                  <p className="text-xl font-extrabold">
+                    {balancesAreLoading || !currency
+                      ? '...'
+                      : formatCurrency(currency, oweTotalMinor, locale)}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowBalances(true)}
+                className="col-span-2 rounded-2xl bg-white/10 border border-white/15 p-4 text-sm font-semibold text-white/90 hover:bg-white/15 transition-colors"
+              >
+                Show Balance Summary
+              </button>
+            )}
           </div>
         </div>
       </section>

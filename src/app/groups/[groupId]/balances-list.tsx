@@ -3,6 +3,7 @@ import { Currency } from '@/lib/currency'
 import { cn, formatCurrency } from '@/lib/utils'
 import { Participant } from '@prisma/client'
 import { useLocale } from 'next-intl'
+import { memo } from 'react'
 
 type Props = {
   balances: Balances
@@ -10,7 +11,7 @@ type Props = {
   currency: Currency
 }
 
-export function BalancesList({ balances, participants, currency }: Props) {
+export const BalancesList = memo(function BalancesList({ balances, participants, currency }: Props) {
   const locale = useLocale()
   const maxBalance = Math.max(
     ...Object.values(balances).map((b) => Math.abs(b.total)),
@@ -52,4 +53,4 @@ export function BalancesList({ balances, participants, currency }: Props) {
       })}
     </div>
   )
-}
+})

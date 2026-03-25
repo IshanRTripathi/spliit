@@ -2,8 +2,9 @@ import { Button } from '@/components/ui/button'
 import { AppRouterOutput } from '@/trpc/routers/_app'
 import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
+import { memo } from 'react'
 
-export function RecentGroupListCard({
+export const RecentGroupListCard = memo(function RecentGroupListCard({
   group,
 }: {
   group: AppRouterOutput['groups']['list']['groups'][number]
@@ -80,4 +81,4 @@ export function RecentGroupListCard({
       </div>
     </li>
   )
-}
+})
