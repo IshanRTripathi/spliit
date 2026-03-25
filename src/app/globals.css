@@ -10,7 +10,8 @@
     --card-foreground: 164 39% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 164 39% 12%;
-    --primary: 161 74% 34%;
+    /* From `newuicode.md`: primary (#b70049) */
+    --primary: 336 100% 36%;
     --primary-foreground: 0 0% 100%;
     --secondary: 150 32% 94%;
     --secondary-foreground: 164 35% 17%;
@@ -22,8 +23,9 @@
     --destructive-foreground: 0 0% 98%;
     --border: 160 22% 85%;
     --input: 160 22% 85%;
-    --ring: 161 74% 34%;
-    --radius: 0.9rem;
+    /* From `newuicode.md`: primary ring */
+    --ring: 336 100% 36%;
+    --radius: 1rem;
   }
 
   .dark {
@@ -33,7 +35,7 @@
     --card-foreground: 156 26% 92%;
     --popover: 164 32% 10%;
     --popover-foreground: 156 26% 92%;
-    --primary: 160 82% 46%;
+    --primary: 336 100% 46%;
     --primary-foreground: 167 55% 10%;
     --secondary: 164 24% 16%;
     --secondary-foreground: 0 0% 98%;
@@ -45,7 +47,7 @@
     --destructive-foreground: 0 85.7% 97.3%;
     --border: 164 18% 22%;
     --input: 164 18% 22%;
-    --ring: 160 82% 46%;
+    --ring: 336 100% 46%;
   }
 }
 
@@ -62,7 +64,10 @@
 }
 
 .landing-header {
-  @apply bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 dark:from-emerald-300 dark:via-emerald-400 dark:to-teal-400 bg-clip-text;
+  background: linear-gradient(135deg, #b70049 0%, #ff7290 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .landing-header strong {
@@ -75,4 +80,9 @@
 
 .page-section {
   @apply rounded-2xl border border-border/70 bg-card/95 shadow-sm;
+}
+
+/* Matches `bg-magenta-gradient` from `newuicode.md` */
+.bg-magenta-gradient {
+  background: linear-gradient(135deg, #FF2E95 0%, #E1027F 100%);
 }

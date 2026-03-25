@@ -121,11 +121,12 @@ const ExpenseListForSearch = ({
     isLoading: expensesAreLoading,
     fetchNextPage,
   } = trpc.groups.expenses.list.useInfiniteQuery(
-    { groupId, limit: PAGE_SIZE, filter: searchText },
+    // Keep server query stable (no API call on each keystroke).
+    { groupId, limit: PAGE_SIZE, filter: '' },
     { getNextPageParam: ({ nextCursor }) => nextCursor },
   )
   const expenses = data?.pages.flatMap((page) => page.expenses)
-  const hasMore = data?.pages.at(-1)?.hasMore ?? false
+  const hasMore = (data?.pages.at(-1)?.hasMore ?? false) && !searchText.trim()
 
   const isLoading = expensesAreLoading || !expenses || !group
 
@@ -133,14 +134,29 @@ const ExpenseListForSearch = ({
     if (inView && hasMore && !isLoading) fetchNextPage()
   }, [fetchNextPage, hasMore, inView, isLoading])
 
+  const filteredExpenses = useMemo(() => {
+    if (!expenses) return []
+    const q = searchText.trim().toLowerCase()
+    if (!q) return expenses
+
+    return expenses.filter((e) => {
+      const title = e.title?.toLowerCase() ?? ''
+      const categoryName = e.category?.name?.toLowerCase() ?? ''
+      const categoryGrouping = e.category?.grouping?.toLowerCase() ?? ''
+      return (
+        title.includes(q) || categoryName.includes(q) || categoryGrouping.includes(q)
+      )
+    })
+  }, [expenses, searchText])
+
   const groupedExpensesByDate = useMemo(
-    () => (expenses ? getGroupedExpensesByDate(expenses) : {}),
-    [expenses],
+    () => getGroupedExpensesByDate(filteredExpenses),
+    [filteredExpenses],
   )
 
   if (isLoading) return <ExpensesLoading />
 
-  if (expenses.length === 0)
+  if (filteredExpenses.length === 0)
     return (
       <p className="px-6 text-sm py-6">
         {t('noExpenses')}{' '}
@@ -162,7 +178,7 @@ const ExpenseListForSearch = ({
           <div key={expenseGroup}>
             <div
               className={
-                'text-muted-foreground text-xs pl-4 sm:pl-6 py-1 font-semibold sticky top-16 bg-white dark:bg-[#1b1917]'
+                'text-muted-foreground text-xs pl-4 sm:pl-6 py-1 font-semibold sticky top-16 bg-white dark:bg-zinc-950'
               }
             >
               {t(`Groups.${expenseGroup}`)}

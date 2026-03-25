@@ -22,7 +22,7 @@ export function GroupTabs({ groupId }: Props) {
 
   return (
     <div className="w-full overflow-x-auto">
-      <div className="inline-flex min-w-full items-center gap-1 rounded-2xl border border-border/70 bg-card/85 p-1.5 shadow-sm">
+      <div className="inline-flex min-w-full items-center gap-1.5 rounded-2xl border border-border/70 bg-card/85 p-1.5 shadow-sm">
         {tabs.map((tab) => {
           const isActive = currentSegment === tab.value
           return (
@@ -33,10 +33,10 @@ export function GroupTabs({ groupId }: Props) {
               size="sm"
               onClick={() => router.push(`/groups/${groupId}/${tab.value}`)}
               className={cn(
-                'h-9 rounded-xl px-3 whitespace-nowrap text-xs sm:text-sm',
+                'h-9 rounded-xl px-3 whitespace-nowrap text-xs sm:text-sm transition-colors',
                 isActive
-                  ? 'bg-background text-foreground shadow-sm border border-border/70'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'bg-magenta-gradient text-white shadow-lg'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               {tab.label}

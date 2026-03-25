@@ -218,9 +218,6 @@ function GroupsPage({
             <h1 className="font-bold text-2xl flex-1">
               <Link href="/groups">{t('myGroups')}</Link>
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Track balances, split bills, and settle up quickly.
-            </p>
           </div>
           <div className="flex gap-2">
             <AddGroupByUrlButton reload={reload} />
@@ -232,11 +229,6 @@ function GroupsPage({
           </div>
         </div>
       </section>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h2 className="font-semibold text-base sm:text-lg flex-1">
-          <Link href="/groups">{t('myGroups')}</Link>
-        </h2>
-      </div>
       <div>{children}</div>
     </>
   )
