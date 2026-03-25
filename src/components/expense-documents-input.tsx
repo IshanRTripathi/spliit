@@ -160,7 +160,7 @@ export function ExpenseDocumentsInput({
             key={doc.id}
             document={doc}
             documents={documents}
-            previewUrl={previewById[doc.id]}
+            getPreviewUrl={(id) => previewById[id]}
             deleteDocument={deleteDocument}
           />
         ))}
@@ -189,12 +189,12 @@ export function DocumentThumbnail({
   document,
   documents,
   deleteDocument,
-  previewUrl,
+  getPreviewUrl,
 }: {
   document: ExpenseFormValues['documents'][number]
   documents: ExpenseFormValues['documents']
   deleteDocument: (document: ExpenseFormValues['documents'][number]) => void
-  previewUrl?: string
+  getPreviewUrl: (id: string) => string | undefined
 }) {
   const [open, setOpen] = useState(false)
   const [api, setApi] = useState<CarouselApi>()
@@ -222,7 +222,10 @@ export function DocumentThumbnail({
             width={300}
             height={300}
             className="object-contain"
-            src={previewUrl ?? document.url}
+                src={
+                  getPreviewUrl(document.id) ??
+                  supabaseS3UrlToPublicObjectUrl(document.url)
+                }
             alt=""
           />
         </Button>
@@ -265,7 +268,10 @@ export function DocumentThumbnail({
                 <CarouselItem key={index}>
                   <Image
                     className="object-contain w-[calc(100vw-32px)] h-[calc(100dvh-32px-40px-16px-48px)] sm:w-[calc(100vw-32px-32px)] sm:h-[calc(100dvh-32px-40px-16px-32px-48px)]"
-                    src={previewUrl ?? document.url}
+                    src={
+                      getPreviewUrl(document.id) ??
+                      supabaseS3UrlToPublicObjectUrl(document.url)
+                    }
                     width={document.width}
                     height={document.height}
                     alt=""
