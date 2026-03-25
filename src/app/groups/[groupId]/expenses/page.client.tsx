@@ -16,6 +16,8 @@ import { Plus } from 'lucide-react'
 import { Metadata } from 'next'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { useState } from 'react'
+import { cn } from '@/lib/utils'
 import { useCurrentGroup } from '../current-group-context'
 
 export const revalidate = 3600
@@ -30,16 +32,63 @@ export default function GroupExpensesPageClient({
   enableReceiptExtract: boolean
 }) {
   const t = useTranslations('Expenses')
-  const { groupId } = useCurrentGroup()
+  const { groupId, group } = useCurrentGroup()
+  const [viewCurrency, setViewCurrency] = useState<'ORIGINAL' | 'BASE' | 'DEST'>('ORIGINAL')
+  
+  const hasDestinationCurrency = 
+    group?.currencyCode && 
+    group?.destinationCurrencyCode && 
+    group.currencyCode !== group.destinationCurrencyCode &&
+    group.exchangeRate
 
   return (
     <>
       <Card className="mb-20 sm:mb-4">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <CardHeader className="flex-1 p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <span>{t('title')}</span>
               <ExportButton groupId={groupId} />
+              {hasDestinationCurrency && (
+                <div className="flex rounded-full bg-[#E9E9EB] p-[2px] text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setViewCurrency('ORIGINAL')}
+                    className={cn(
+                      'px-2 py-1 text-[11px] rounded-full transition-colors',
+                      viewCurrency === 'ORIGINAL'
+                        ? 'bg-white text-[#D81B60] shadow-sm'
+                        : 'text-[#8E8E93]',
+                    )}
+                  >
+                    Original
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewCurrency('BASE')}
+                    className={cn(
+                      'px-2 py-1 text-[11px] rounded-full transition-colors',
+                      viewCurrency === 'BASE'
+                        ? 'bg-white text-[#D81B60] shadow-sm'
+                        : 'text-[#8E8E93]',
+                    )}
+                  >
+                    {group.currencyCode}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewCurrency('DEST')}
+                    className={cn(
+                      'px-2 py-1 text-[11px] rounded-full transition-colors',
+                      viewCurrency === 'DEST'
+                        ? 'bg-white text-[#D81B60] shadow-sm'
+                        : 'text-[#8E8E93]',
+                    )}
+                  >
+                    {group.destinationCurrencyCode}
+                  </button>
+                </div>
+              )}
             </CardTitle>
             <CardDescription>{t('description')}</CardDescription>
           </CardHeader>
@@ -57,7 +106,7 @@ export default function GroupExpensesPageClient({
         </div>
 
         <CardContent className="p-0 pt-2 pb-4 sm:pb-6 flex flex-col gap-4 relative">
-          <ExpenseList />
+          <ExpenseList viewCurrency={viewCurrency} />
         </CardContent>
       </Card>
 

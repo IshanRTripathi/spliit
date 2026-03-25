@@ -58,7 +58,7 @@ function getGroupedExpensesByDate(expenses: ExpensesType) {
   }, {})
 }
 
-export function ExpenseList() {
+export function ExpenseList({ viewCurrency = 'ORIGINAL' }: { viewCurrency?: 'ORIGINAL' | 'BASE' | 'DEST' }) {
   const { groupId, group } = useCurrentGroup()
   const [searchText, setSearchText] = useState('')
   const [debouncedSearchText] = useDebounce(searchText, 300)
@@ -92,6 +92,7 @@ export function ExpenseList() {
       <ExpenseListForSearch
         groupId={groupId}
         searchText={debouncedSearchText}
+        viewCurrency={viewCurrency}
       />
     </>
   )
@@ -100,9 +101,11 @@ export function ExpenseList() {
 const ExpenseListForSearch = ({
   groupId,
   searchText,
+  viewCurrency = 'ORIGINAL',
 }: {
   groupId: string
   searchText: string
+  viewCurrency?: 'ORIGINAL' | 'BASE' | 'DEST'
 }) => {
   const utils = trpc.useUtils()
   const { group } = useCurrentGroup()
@@ -168,6 +171,11 @@ const ExpenseListForSearch = ({
       </p>
     )
 
+  const groupCurrency = getCurrencyFromGroup(group)
+  const groupExchangeRate = group.exchangeRate ? Number(group.exchangeRate) : undefined
+  const baseCurrencyCode = group.currencyCode ?? undefined
+  const destCurrencyCode = group.destinationCurrencyCode ?? undefined
+
   return (
     <>
       {Object.values(EXPENSE_GROUPS).map((expenseGroup: string) => {
@@ -187,9 +195,13 @@ const ExpenseListForSearch = ({
               <ExpenseCard
                 key={expense.id}
                 expense={expense}
-                currency={getCurrencyFromGroup(group)}
+                currency={groupCurrency}
                 groupId={groupId}
                 participantCount={group.participants.length}
+                viewCurrency={viewCurrency}
+                exchangeRate={groupExchangeRate}
+                baseCurrencyCode={baseCurrencyCode}
+                destCurrencyCode={destCurrencyCode}
               />
             ))}
           </div>

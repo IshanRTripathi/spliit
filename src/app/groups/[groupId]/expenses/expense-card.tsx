@@ -4,7 +4,8 @@ import { CategoryIcon } from '@/app/groups/[groupId]/expenses/category-icon'
 import { DocumentsCount } from '@/app/groups/[groupId]/expenses/documents-count'
 import { Button } from '@/components/ui/button'
 import { getGroupExpenses } from '@/lib/api'
-import { Currency } from '@/lib/currency'
+import { Currency, getCurrency } from '@/lib/currency'
+import { convertExpenseAmount } from '@/lib/currency-conversion'
 import { cn, formatCurrency, formatDateOnly } from '@/lib/utils'
 import { ChevronRight } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
@@ -49,6 +50,10 @@ type Props = {
   currency: Currency
   groupId: string
   participantCount: number
+  viewCurrency?: 'ORIGINAL' | 'BASE' | 'DEST'
+  exchangeRate?: number
+  baseCurrencyCode?: string
+  destCurrencyCode?: string
 }
 
 export function ExpenseCard({
@@ -56,9 +61,47 @@ export function ExpenseCard({
   currency,
   groupId,
   participantCount,
+  viewCurrency = 'ORIGINAL',
+  exchangeRate,
+  baseCurrencyCode,
+  destCurrencyCode,
 }: Props) {
   const router = useRouter()
   const locale = useLocale()
+
+  // Determine which currency and amount to display
+  let displayCurrency = currency
+  let displayAmount = expense.amount
+
+  if (viewCurrency === 'ORIGINAL') {
+    // Show in original currency (as stored)
+    displayCurrency = expense.originalCurrency 
+      ? getCurrency(expense.originalCurrency, locale as any, '')
+      : currency
+    displayAmount = expense.amount
+  } else if (viewCurrency === 'BASE') {
+    // Convert everything to base currency
+    displayCurrency = currency
+    displayAmount = convertExpenseAmount(
+      expense.amount,
+      expense.originalCurrency,
+      baseCurrencyCode,
+      destCurrencyCode,
+      exchangeRate || null,
+      'BASE',
+    )
+  } else if (viewCurrency === 'DEST' && destCurrencyCode) {
+    // Convert everything to destination currency
+    displayCurrency = getCurrency(destCurrencyCode, locale as any, '')
+    displayAmount = convertExpenseAmount(
+      expense.amount,
+      expense.originalCurrency,
+      baseCurrencyCode,
+      destCurrencyCode,
+      exchangeRate || null,
+      'DEST',
+    )
+  }
 
   return (
     <div
@@ -93,7 +136,7 @@ export function ExpenseCard({
             expense.isReimbursement ? 'italic' : 'font-bold',
           )}
         >
-          {formatCurrency(currency, expense.amount, locale)}
+          {formatCurrency(displayCurrency, displayAmount, locale)}
         </div>
         <div className="text-xs text-muted-foreground">
           <DocumentsCount count={expense._count.documents} />

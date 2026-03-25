@@ -288,20 +288,32 @@ export function ExpenseForm({
   const submit = async (values: ExpenseFormValues) => {
     await persistDefaultSplittingOptions(group.id, values)
 
-    // Store monetary amounts in minor units (cents)
-    values.amount = amountAsMinorUnits(values.amount, groupCurrency)
+    const enteredAmount = Number(values.amount)
+    
+    // Store in the currency the user selected via toggle
+    if (currencyView === 'DEST' && hasDestinationToggle && groupExchangeRate) {
+      // User is viewing/entering in destination currency (e.g., CNY)
+      // Store the amount in destination currency
+      values.amount = amountAsMinorUnits(enteredAmount, destinationCurrency)
+      values.originalCurrency = destinationCurrencyCode
+      values.conversionRate = groupExchangeRate
+    } else {
+      // User is viewing/entering in base currency (e.g., USD)
+      // Store the amount in base currency
+      values.amount = amountAsMinorUnits(enteredAmount, groupCurrency)
+      values.originalCurrency = group.currencyCode
+      values.conversionRate = groupExchangeRate || undefined
+    }
+
+    // Convert split amounts to minor units (always in base currency for splits)
     values.paidFor = values.paidFor.map(({ participant, shares }) => ({
       participant,
       shares:
         values.splitMode === 'BY_AMOUNT'
-          ? amountAsMinorUnits(shares, groupCurrency)
+          ? amountAsMinorUnits(Number(shares), groupCurrency)
           : shares,
     }))
 
-    // Exchange rate is configured at group level, not per expense.
-    delete values.originalAmount
-    delete values.originalCurrency
-    delete values.conversionRate
     values.recurrenceRule = RecurrenceRule.NONE
     return onSubmit(values, activeUserId ?? undefined)
   }
@@ -460,33 +472,18 @@ export function ExpenseForm({
                           type="text"
                           inputMode="decimal"
                           placeholder="0.00"
+                          value={field.value}
                           onChange={(event) => {
                             const v = enforceCurrencyPattern(event.target.value)
-                            const enteredAmount = Number(v)
-                            const baseAmount =
-                              currencyView === 'DEST' &&
-                              hasDestinationToggle &&
-                              groupExchangeRate
-                                ? enteredAmount / groupExchangeRate
-                                : enteredAmount
-                            const income = Number(baseAmount) < 0
+                            const income = Number(v) < 0
                             setIsIncome(income)
                             if (income) form.setValue('isReimbursement', false)
-                            onChange(baseAmount)
+                            onChange(v)
                           }}
                           onFocus={(e) => {
                             const target = e.currentTarget
                             setTimeout(() => target.select(), 1)
                           }}
-                          value={
-                            currencyView === 'DEST' &&
-                            hasDestinationToggle &&
-                            groupExchangeRate
-                              ? enforceCurrencyPattern(
-                                  String(amountInDestination.toFixed(groupCurrency.decimal_digits)),
-                                )
-                              : field.value
-                          }
                         />
                       </FormControl>
                       </div>
@@ -494,7 +491,15 @@ export function ExpenseForm({
                         <div className="flex rounded-full bg-[#E9E9EB] p-[3px]">
                           <button
                             type="button"
-                            onClick={() => setCurrencyView('BASE')}
+                            onClick={() => {
+                              if (currencyView === 'DEST' && groupExchangeRate) {
+                                // Convert from DEST to BASE
+                                const currentAmount = Number(form.getValues('amount') || 0)
+                                const convertedAmount = currentAmount / groupExchangeRate
+                                form.setValue('amount', convertedAmount.toFixed(groupCurrency.decimal_digits) as any)
+                              }
+                              setCurrencyView('BASE')
+                            }}
                             className={cn(
                               'px-3 py-[5px] text-xs rounded-full',
                               currencyView === 'BASE'
@@ -506,7 +511,15 @@ export function ExpenseForm({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setCurrencyView('DEST')}
+                            onClick={() => {
+                              if (currencyView === 'BASE' && groupExchangeRate) {
+                                // Convert from BASE to DEST
+                                const currentAmount = Number(form.getValues('amount') || 0)
+                                const convertedAmount = currentAmount * groupExchangeRate
+                                form.setValue('amount', convertedAmount.toFixed(destinationCurrency.decimal_digits) as any)
+                              }
+                              setCurrencyView('DEST')
+                            }}
                             className={cn(
                               'px-3 py-[5px] text-xs rounded-full',
                               currencyView === 'DEST'
@@ -555,10 +568,13 @@ export function ExpenseForm({
               control={form.control}
               name="title"
               render={({ field }) => (
-                <FormItem className="hidden">
+                <FormItem>
+                  <FormLabel className="text-[14px] text-[#8E8E93]">Description</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
+                      className="h-12 w-full rounded-[20px] border-0 bg-white px-4 text-[14px] shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+                      placeholder="e.g., Dinner at restaurant"
                       onBlur={async () => {
                         field.onBlur()
                         if (runtimeFeatureFlags.enableCategoryExtract) {
@@ -572,6 +588,7 @@ export function ExpenseForm({
                       }}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -581,12 +598,12 @@ export function ExpenseForm({
                 control={form.control}
                 name="expenseDate"
                 render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel className="text-[14px]">{t(`${sExpense}.DateField.label`)}</FormLabel>
+                  <FormItem className="space-y-2 min-w-0">
+                    <FormLabel className="text-[14px] text-[#8E8E93]">Date</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
-                        className="h-12 w-full rounded-[20px] border-0 bg-white px-4 text-[14px] shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+                        className="h-12 w-full rounded-[20px] border-0 bg-white px-3 text-[13px] shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
                         defaultValue={formatDate(field.value)}
                         onChange={(event) => {
                           return field.onChange(new Date(event.target.value))
@@ -602,13 +619,13 @@ export function ExpenseForm({
                 control={form.control}
                 name="paidBy"
                 render={({ field }) => (
-                  <FormItem className="space-y-2">
-                    <FormLabel className="text-[14px]">{t(`${sExpense}.paidByField.label`)}</FormLabel>
+                  <FormItem className="space-y-2 min-w-0">
+                    <FormLabel className="text-[14px] text-[#8E8E93]">Paid by</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={getSelectedPayer(field)}
                     >
-                      <SelectTrigger className="h-12 w-full rounded-[20px] border-0 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.04)]">
+                      <SelectTrigger className="h-12 w-full rounded-[20px] border-0 bg-white px-3 shadow-[0_2px_6px_rgba(0,0,0,0.04)] text-[13px]">
                         <SelectValue
                           placeholder={t(`${sExpense}.paidByField.placeholder`)}
                         />

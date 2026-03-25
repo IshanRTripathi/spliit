@@ -441,6 +441,8 @@ export async function getGroupExpenses(
       splitMode: true,
       recurrenceRule: true,
       title: true,
+      originalCurrency: true,
+      conversionRate: true,
       _count: { select: { documents: true } },
     },
     where: {

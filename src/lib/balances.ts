@@ -15,6 +15,8 @@ export type Reimbursement = {
 
 export function getBalances(
   expenses: NonNullable<Awaited<ReturnType<typeof getGroupExpenses>>>,
+  groupCurrencyCode?: string,
+  exchangeRate?: number | null,
 ): Balances {
   const balances: Balances = {}
 
@@ -22,8 +24,21 @@ export function getBalances(
     const paidBy = expense.paidBy.id
     const paidFors = expense.paidFor
 
+    // Convert expense amount to group's base currency if needed
+    let expenseAmountInBaseCurrency = expense.amount
+    if (
+      expense.originalCurrency &&
+      groupCurrencyCode &&
+      expense.originalCurrency !== groupCurrencyCode &&
+      exchangeRate &&
+      expense.conversionRate
+    ) {
+      // Expense is in destination currency, convert to base
+      expenseAmountInBaseCurrency = Math.round(expense.amount / Number(expense.conversionRate))
+    }
+
     if (!balances[paidBy]) balances[paidBy] = { paid: 0, paidFor: 0, total: 0 }
-    balances[paidBy].paid += expense.amount
+    balances[paidBy].paid += expenseAmountInBaseCurrency
 
     const totalPaidForShares = paidFors.reduce(
       (sum, paidFor) => sum + paidFor.shares,
@@ -45,7 +60,7 @@ export function getBalances(
 
       const dividedAmount = isLast
         ? remaining
-        : (expense.amount * shares) / totalShares
+        : (expenseAmountInBaseCurrency * shares) / totalShares
       remaining -= dividedAmount
       balances[paidFor.participant.id].paidFor += dividedAmount
     })
