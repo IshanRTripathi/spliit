@@ -23,7 +23,7 @@ export function TotalsYourSpendings({
       <div
         className={cn(
           'text-lg',
-          totalParticipantSpendings < 0 ? 'text-primary' : 'text-destructive',
+          totalParticipantSpendings < 0 ? 'text-status-positive' : 'text-status-negative',
         )}
       >
         {formatCurrency(currency, Math.abs(totalParticipantSpendings), locale)}

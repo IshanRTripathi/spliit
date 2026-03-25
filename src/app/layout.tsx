@@ -3,6 +3,7 @@ import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { ProgressBar } from '@/components/progress-bar'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
+import { TopAppBar } from '@/components/top-app-bar'
 import { env } from '@/lib/env'
 import { TRPCProvider } from '@/trpc/client'
 import type { Metadata, Viewport } from 'next'
@@ -40,13 +41,14 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#b70049',
+  themeColor: '#E91E63',
 }
 
 function Content({ children }: { children: React.ReactNode }) {
   return (
     <TRPCProvider>
-      <div className="flex flex-1 flex-col px-0 pt-4 pb-20 sm:pb-0">{children}</div>
+      <TopAppBar />
+      <div className="flex flex-1 flex-col px-0 pt-16 pb-20 sm:pb-0">{children}</div>
       <MobileBottomNav />
       <Toaster />
     </TRPCProvider>
@@ -62,7 +64,7 @@ export default async function RootLayout({
   const messages = await getMessages()
   return (
     <html lang={locale} suppressHydrationWarning>
-      <ApplePwaSplash icon="/android-chrome-192x192.png" color="#b70049" />
+      <ApplePwaSplash icon="/android-chrome-192x192.png" color="#E91E63" />
       <body className="min-h-[100dvh] flex flex-col items-stretch bg-background">
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider

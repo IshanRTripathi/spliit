@@ -4,27 +4,59 @@
 
 @layer base {
   :root {
-    --background: 152 35% 97%;
-    --foreground: 164 39% 12%;
+    /* User-specified design tokens (single source of truth) */
+    --grad-start: #D81B60; /* deep pink */
+    --grad-end: #F06292; /* soft pink */
+    --primary-pink: #E91E63;
+
+    --bg-main: #F5F5F7;
+    --surface: #FFFFFF;
+    --surface-soft: #FAFAFA;
+
+    --text-primary: #212121;
+    --text-secondary: #757575;
+    --text-muted: #9E9E9E;
+
+    --status-positive: #00C853;
+    --status-negative: #D32F2F;
+
+    --icon-muted: #BDBDBD;
+    --divider-subtle: #EEEEEE;
+
+    --chip-pink-tint: #FCE4EC;
+    --chip-purple-tint: #F3E5F5;
+
+    --status-positive-bg: rgba(0, 200, 83, 0.15);
+    --status-positive-border: rgba(0, 200, 83, 0.45);
+    --status-negative-bg: rgba(211, 47, 47, 0.15);
+    --status-negative-border: rgba(211, 47, 47, 0.45);
+
+    /* Tailwind theme colors (derived from tokens above) */
+    --background: 240 11% 96%;
+    --foreground: 0 0% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 164 39% 12%;
+    --card-foreground: 0 0% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 164 39% 12%;
-    /* From `newuicode.md`: primary (#b70049) */
-    --primary: 336 100% 36%;
+    --popover-foreground: 0 0% 13%;
+
+    --primary: 340 82% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 150 32% 94%;
-    --secondary-foreground: 164 35% 17%;
-    --muted: 150 25% 92%;
-    --muted-foreground: 164 16% 40%;
-    --accent: 158 45% 90%;
-    --accent-foreground: 164 35% 17%;
-    --destructive: 0 84.2% 60.2%;
+
+    --secondary: 292 44% 93%;
+    --secondary-foreground: 340 82% 52%;
+
+    --muted: 0 0% 98%;
+    --muted-foreground: 0 0% 62%;
+
+    --accent: 340 80% 94%;
+    --accent-foreground: 0 0% 13%;
+
+    --destructive: 0 65% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 160 22% 85%;
-    --input: 160 22% 85%;
-    /* From `newuicode.md`: primary ring */
-    --ring: 336 100% 36%;
+
+    --border: 0 0% 93%;
+    --input: 0 0% 93%;
+    --ring: 340 82% 52%;
     --radius: 1rem;
   }
 
@@ -35,7 +67,7 @@
     --card-foreground: 156 26% 92%;
     --popover: 164 32% 10%;
     --popover-foreground: 156 26% 92%;
-    --primary: 336 100% 46%;
+    --primary: 340 82% 52%;
     --primary-foreground: 167 55% 10%;
     --secondary: 164 24% 16%;
     --secondary-foreground: 0 0% 98%;
@@ -47,7 +79,7 @@
     --destructive-foreground: 0 85.7% 97.3%;
     --border: 164 18% 22%;
     --input: 164 18% 22%;
-    --ring: 336 100% 46%;
+    --ring: 340 82% 52%;
   }
 }
 
@@ -64,7 +96,7 @@
 }
 
 .landing-header {
-  background: linear-gradient(135deg, #b70049 0%, #ff7290 100%);
+  background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -84,5 +116,30 @@
 
 /* Matches `bg-magenta-gradient` from `newuicode.md` */
 .bg-magenta-gradient {
-  background: linear-gradient(135deg, #FF2E95 0%, #E1027F 100%);
+  background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
+}
+
+.text-primary-gradient {
+  background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-status-positive {
+  color: var(--status-positive);
+}
+
+.text-status-negative {
+  color: var(--status-negative);
+}
+
+.status-positive-bar {
+  background: var(--status-positive-bg);
+  border-color: var(--status-positive-border);
+}
+
+.status-negative-bar {
+  background: var(--status-negative-bg);
+  border-color: var(--status-negative-border);
 }

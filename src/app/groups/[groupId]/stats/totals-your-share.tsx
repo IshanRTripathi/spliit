@@ -19,7 +19,7 @@ export function TotalsYourShare({
       <div
         className={cn(
           'text-lg',
-          totalParticipantShare < 0 ? 'text-primary' : 'text-destructive',
+          totalParticipantShare < 0 ? 'text-status-positive' : 'text-status-negative',
         )}
       >
         {formatCurrency(currency, Math.abs(totalParticipantShare), locale)}

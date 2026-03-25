@@ -2,13 +2,15 @@
 import { AddGroupByUrlButton } from '@/app/groups/add-group-by-url-button'
 import {
   getArchivedGroups,
+  getRecentGroups,
   getStarredGroups,
 } from '@/app/groups/recent-groups-helpers'
 import { Button } from '@/components/ui/button'
+import { formatCurrency, getCurrencyFromGroup } from '@/lib/utils'
 import { trpc } from '@/trpc/client'
 import { AppRouterOutput } from '@/trpc/routers/_app'
 import { Loader2 } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
 import { RecentGroupListCard } from './recent-group-list-card'
@@ -89,116 +91,190 @@ function RecentGroupList_({
   const t = useTranslations('Groups')
   const { data, isLoading } = trpc.groups.list.useQuery()
   const dataGroups = data?.groups ?? []
-  const sortedGroups = useMemo(
-    () =>
-      sortGroups({
-        groups: dataGroups,
-        starredGroups,
-        archivedGroups,
-      }),
-    [dataGroups, starredGroups, archivedGroups],
+  const [tab, setTab] = useState<'recent' | 'debt'>('recent')
+  const [lastGroupId, setLastGroupId] = useState<string | undefined>(
+    undefined,
   )
+
+  const locale = useLocale()
+
+  useEffect(() => {
+    try {
+      const recent = getRecentGroups()
+      setLastGroupId(recent[0]?.id)
+    } catch {
+      setLastGroupId(undefined)
+    }
+  }, [])
+
+  const { data: lastGroupData, isLoading: lastGroupIsLoading } =
+    trpc.groups.get.useQuery(
+      { groupId: lastGroupId ?? '' },
+      { enabled: !!lastGroupId },
+    )
+
+  const { data: balancesData, isLoading: balancesAreLoading } =
+    trpc.groups.balances.list.useQuery(
+      { groupId: lastGroupId ?? '' },
+      { enabled: !!lastGroupId },
+    )
+
+  const currency = useMemo(() => {
+    if (!lastGroupData?.group) return null
+    return getCurrencyFromGroup(lastGroupData.group)
+  }, [lastGroupData])
+
+  const balances = balancesData?.balances ?? {}
+  const owedTotalMinor = useMemo(() => {
+    return Object.values(balances).reduce(
+      (sum, b) => (b.total > 0 ? sum + b.total : sum),
+      0,
+    )
+  }, [balances])
+  const oweTotalMinor = useMemo(() => {
+    return Object.values(balances).reduce(
+      (sum, b) => (b.total < 0 ? sum + Math.abs(b.total) : sum),
+      0,
+    )
+  }, [balances])
+
+  const netMinor = owedTotalMinor - oweTotalMinor
+  const totalOwedText = useMemo(() => {
+    if (!currency) return '...'
+    return formatCurrency(currency, Math.abs(netMinor), locale)
+  }, [currency, netMinor, locale])
 
   if (isLoading || !data) {
     return (
-      <GroupsPage reload={refreshGroupsFromStorage}>
-        <p>
-          <Loader2 className="w-4 m-4 mr-2 inline animate-spin" />{' '}
-          {t('loadingRecent')}
-        </p>
-      </GroupsPage>
+      <main className="px-4 pb-28 pt-3">
+        <div className="space-y-3">
+          <div className="h-7 w-40 rounded-xl bg-surface-container-highest animate-pulse" />
+          <div className="h-10 w-64 rounded-3xl bg-surface-container-highest animate-pulse" />
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="rounded-3xl bg-card/80 border border-border/70 p-4 animate-pulse"
+            >
+              <div className="h-3 w-24 bg-surface-container-highest rounded" />
+              <div className="mt-3 h-8 w-24 bg-surface-container-highest rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-3xl bg-card/80 border border-border/70 p-4 animate-pulse"
+            >
+              <div className="h-10 w-10 rounded-2xl bg-surface-container-highest" />
+              <div className="mt-3 h-4 w-40 bg-surface-container-highest rounded" />
+            </div>
+          ))}
+        </div>
+      </main>
     )
   }
 
   if (data.groups.length === 0) {
     return (
-      <GroupsPage reload={refreshGroupsFromStorage}>
-        <div className="text-sm space-y-2">
-          <p>{t('NoRecent.description')}</p>
-          <p>
-            <Button variant="link" asChild className="-m-4">
-              <Link href={`/groups/create`}>{t('NoRecent.create')}</Link>
-            </Button>{' '}
-            {t('NoRecent.orAsk')}
+      <main className="px-4 pb-28 pt-3">
+        <section className="page-section p-4">
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            Your shared worlds
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('NoRecent.description')}
           </p>
-        </div>
-      </GroupsPage>
+          <div className="mt-4">
+            <Button asChild>
+              <Link href="/groups/create">{t('NoRecent.create')}</Link>
+            </Button>
+          </div>
+        </section>
+      </main>
     )
   }
 
-  const { starredGroupInfo, groupInfo, archivedGroupInfo } = sortedGroups
+  const groupsForView = dataGroups
+  const activeGroupsCount = groupsForView.length
 
   return (
-    <GroupsPage reload={refreshGroupsFromStorage}>
-      {starredGroupInfo.length > 0 && (
-        <>
-          <h2 className="mb-2">{t('starred')}</h2>
-          <GroupList
-            groups={starredGroupInfo}
-            groupDetails={data.groups}
-            archivedGroups={archivedGroups}
-            starredGroups={starredGroups}
-            refreshGroupsFromStorage={refreshGroupsFromStorage}
-          />
-        </>
-      )}
+    <main className="px-4 pb-28 pt-3">
+      <section>
+        <h2 className="text-4xl font-extrabold tracking-tighter leading-none">
+          Your shared worlds,{' '}
+          <span className="text-primary">perfectly split.</span>
+        </h2>
 
-      {groupInfo.length > 0 && (
-        <>
-          <h2 className="mt-6 mb-2">{t('recent')}</h2>
-          <GroupList
-            groups={groupInfo}
-            groupDetails={data.groups}
-            archivedGroups={archivedGroups}
-            starredGroups={starredGroups}
-            refreshGroupsFromStorage={refreshGroupsFromStorage}
-          />
-        </>
-      )}
-
-      {archivedGroupInfo.length > 0 && (
-        <>
-          <h2 className="mt-6 mb-2 opacity-50">{t('archived')}</h2>
-          <div className="opacity-50">
-            <GroupList
-              groups={archivedGroupInfo}
-              groupDetails={data.groups}
-              archivedGroups={archivedGroups}
-              starredGroups={starredGroups}
-              refreshGroupsFromStorage={refreshGroupsFromStorage}
-            />
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-3xl bg-card/80 border border-border/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              ACTIVE GROUPS
+            </p>
+            <p className="mt-2 text-3xl font-extrabold">{activeGroupsCount}</p>
+            <div className="mt-2 h-[3px] w-14 rounded-full bg-magenta-gradient" />
           </div>
-        </>
-      )}
-    </GroupsPage>
+
+          <div className="rounded-3xl bg-card/80 border border-border/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Total owed
+            </p>
+            <p className="mt-2 text-3xl font-extrabold">
+              {balancesAreLoading ? '...' : totalOwedText}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              +12% last month
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-extrabold">Groups</h3>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={tab === 'recent'
+                ? 'px-4 py-2 rounded-2xl text-white bg-magenta-gradient shadow-lg'
+                : 'px-4 py-2 rounded-2xl text-muted-foreground bg-card/80 border border-border/70'}
+              onClick={() => setTab('recent')}
+            >
+              Recent
+            </button>
+            <button
+              type="button"
+              className={tab === 'debt'
+                ? 'px-4 py-2 rounded-2xl text-white bg-magenta-gradient shadow-lg'
+                : 'px-4 py-2 rounded-2xl text-muted-foreground bg-card/80 border border-border/70'}
+              onClick={() => setTab('debt')}
+            >
+              Debt
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <GroupList groups={groupsForView} />
+        </div>
+      </section>
+    </main>
   )
 }
 
 function GroupList({
   groups,
-  groupDetails,
-  starredGroups,
-  archivedGroups,
-  refreshGroupsFromStorage,
 }: {
   groups: AppRouterOutput['groups']['list']['groups']
-  groupDetails?: AppRouterOutput['groups']['list']['groups']
-  starredGroups: string[]
-  archivedGroups: string[]
-  refreshGroupsFromStorage: () => void
 }) {
   return (
-    <ul className="grid gap-2 sm:grid-cols-2">
+    <ul className="space-y-3">
       {groups.map((group) => (
         <RecentGroupListCard
           key={group.id}
           group={group}
-          groupDetail={groupDetails?.find(
-            (groupDetail) => groupDetail.id === group.id,
-          )}
-          isStarred={starredGroups.includes(group.id)}
-          isArchived={archivedGroups.includes(group.id)}
-          refreshGroupsFromStorage={refreshGroupsFromStorage}
         />
       ))}
     </ul>
