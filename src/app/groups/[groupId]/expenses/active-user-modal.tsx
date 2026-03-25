@@ -37,14 +37,6 @@ export function ActiveUserModal({ groupId }: { groupId: string }) {
   useEffect(() => {
     if (!group) return
 
-    const activeUser = localStorage.getItem(`${group.id}-activeUser`)
-
-    // If there's already a selection, keep it.
-    // If it's "None" (unset), prefer selecting the signed-in user.
-    const shouldAutoSelect =
-      !activeUser || activeUser === 'None' || activeUser === 'none'
-    if (!shouldAutoSelect) return
-
     const cookieValue = document.cookie
       .split(';')
       .map((part) => part.trim())
@@ -53,32 +45,45 @@ export function ActiveUserModal({ groupId }: { groupId: string }) {
       .slice(1)
       .join('=')
 
-    if (!cookieValue) {
-      // No signed-in user identity available; keep the original "who are you" flow.
-      const tempUser = localStorage.getItem(`newGroup-activeUser`)
-      if (!tempUser && !activeUser) setOpen(true)
-      if (!tempUser && activeUser === 'None') setOpen(true)
-      return
+    const activeUser = localStorage.getItem(`${group.id}-activeUser`)
+
+    // If we can match the signed-in user to a participant, always use it.
+    // This keeps "Your balance" consistent across devices of the same group.
+    if (cookieValue) {
+      const normalizedIdentifier = normalizeAuthIdentifier(
+        decodeURIComponent(cookieValue),
+      )
+
+      const participant =
+        // Prefer DB-linked identity (stable)
+        group.participants.find((p) => {
+          if (!p.userIdentifier) return false
+          return normalizeAuthIdentifier(p.userIdentifier) === normalizedIdentifier
+        }) ??
+        // Fallback: legacy display-name matching
+        group.participants.find((p) => {
+          const signedInDisplayName = normalizedIdentifier.includes('@')
+            ? normalizedIdentifier.split('@')[0].slice(0, 50) || 'Member'
+            : normalizedIdentifier.slice(0, 50)
+          return p.name === signedInDisplayName
+        })
+
+      if (participant) {
+        localStorage.setItem(`${group.id}-activeUser`, participant.id)
+        setOpen(false)
+        return
+      }
     }
 
-    const normalizedIdentifier = normalizeAuthIdentifier(
-      decodeURIComponent(cookieValue),
-    )
-    const signedInDisplayName = normalizedIdentifier.includes('@')
-      ? normalizedIdentifier.split('@')[0].slice(0, 50) || 'Member'
-      : normalizedIdentifier.slice(0, 50)
+    // If we cannot auto-match:
+    // - open only when there is no valid selection (or it's explicitly None).
+    const isNone = !activeUser || activeUser === 'None' || activeUser === 'none'
+    if (!isNone) return
 
-    const participant = group.participants.find(
-      (p) => p.name === signedInDisplayName,
-    )
-    if (!participant) {
-      const tempUser = localStorage.getItem(`newGroup-activeUser`)
-      if (!tempUser) setOpen(true)
-      return
+    const tempUser = localStorage.getItem(`newGroup-activeUser`)
+    if (!tempUser && (!cookieValue || !activeUser || activeUser === 'None')) {
+      setOpen(true)
     }
-
-    localStorage.setItem(`${group.id}-activeUser`, participant.id)
-    setOpen(false)
   }, [group])
 
   function updateOpen(open: boolean) {

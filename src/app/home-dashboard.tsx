@@ -3,7 +3,7 @@
 import { getRecentGroups } from '@/app/groups/recent-groups-helpers'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AUTH_USER_COOKIE } from '@/lib/auth'
+import { AUTH_COOKIE, AUTH_USER_COOKIE } from '@/lib/auth'
 import { formatCurrency, getCurrencyFromGroup } from '@/lib/utils'
 import { Participant } from '@prisma/client'
 import { trpc } from '@/trpc/client'
@@ -11,6 +11,7 @@ import { ArrowDownRight, ArrowUpRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useLocale, useTranslations } from 'next-intl'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 function getCookieValue(name: string) {
   return (
@@ -27,12 +28,27 @@ function getCookieValue(name: string) {
 export function HomeDashboard() {
   const t = useTranslations('Activity')
   const locale = useLocale()
+  const router = useRouter()
 
   const [userIdentifier, setUserIdentifier] = useState<string>('')
   const [lastGroupId, setLastGroupId] = useState<string | undefined>(undefined)
   const [activeParticipantId, setActiveParticipantId] = useState<
     string | undefined
   >(undefined)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    const isSignedIn = document.cookie.includes(`${AUTH_COOKIE}=1`)
+    if (!isSignedIn) {
+      const next =
+        window.location.pathname + (window.location.search ?? '')
+      router.replace(
+        `/signin?next=${encodeURIComponent(next || '/')}`,
+      )
+      return
+    }
+    setAuthChecked(true)
+  }, [router])
 
   useEffect(() => {
     const raw = getCookieValue(AUTH_USER_COOKIE)
@@ -77,20 +93,26 @@ export function HomeDashboard() {
   }, [lastGroupData])
 
   const balances = balancesData?.balances ?? {}
-  const owedTotalMinor = useMemo(() => {
-    return Object.values(balances).reduce(
-      (sum, b) => (b.total > 0 ? sum + b.total : sum),
-      0,
-    )
-  }, [balances])
-  const oweTotalMinor = useMemo(() => {
-    return Object.values(balances).reduce(
-      (sum, b) => (b.total < 0 ? sum + Math.abs(b.total) : sum),
-      0,
-    )
-  }, [balances])
+  const showActive = Boolean(lastGroupId && activeParticipantId)
+  const activeTotalMinor = useMemo(() => {
+    if (!showActive || !activeParticipantId) return undefined
+    return balances[activeParticipantId]?.total
+  }, [balances, showActive, activeParticipantId])
 
-  const netMinor = owedTotalMinor - oweTotalMinor
+  const owedTotalMinor = useMemo(() => {
+    if (activeTotalMinor === undefined) return 0
+    return activeTotalMinor > 0 ? activeTotalMinor : 0
+  }, [activeTotalMinor])
+
+  const oweTotalMinor = useMemo(() => {
+    if (activeTotalMinor === undefined) return 0
+    return activeTotalMinor < 0 ? Math.abs(activeTotalMinor) : 0
+  }, [activeTotalMinor])
+
+  const netMinor = useMemo(() => {
+    if (activeTotalMinor === undefined) return 0
+    return activeTotalMinor
+  }, [activeTotalMinor])
 
   const { data: activitiesData, isLoading: activitiesAreLoading } =
     trpc.groups.activities.list.useInfiniteQuery(
@@ -127,11 +149,13 @@ export function HomeDashboard() {
   }
 
   const netText = useMemo(() => {
-    if (!currency) return '...'
+    if (!currency || !showActive) return '...'
     if (netMinor === 0) return formatCurrency(currency, 0, locale)
     const sign = netMinor > 0 ? '+' : '-'
     return `${sign}${formatCurrency(currency, Math.abs(netMinor), locale)}`
-  }, [currency, netMinor, locale])
+  }, [currency, netMinor, locale, showActive])
+
+  if (!authChecked) return null
 
   return (
     <main className="px-4 pb-28">
