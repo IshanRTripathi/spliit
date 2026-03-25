@@ -2,20 +2,14 @@ import { PrismaClient } from '@prisma/client'
 
 declare const global: Global & { prisma?: PrismaClient }
 
-export let p: PrismaClient = undefined as any as PrismaClient
+// Reuse a single PrismaClient instance across requests.
+// In serverless environments, creating a new PrismaClient per invocation can exhaust
+// Supabase/Postgres connection limits.
+export const prisma: PrismaClient =
+  global.prisma ?? new PrismaClient({
+    // log: [{ emit: 'stdout', level: 'query' }],
+  })
 
-if (typeof window === 'undefined') {
-  // await delay(1000)
-  if (process.env['NODE_ENV'] === 'production') {
-    p = new PrismaClient()
-  } else {
-    if (!global.prisma) {
-      global.prisma = new PrismaClient({
-        // log: [{ emit: 'stdout', level: 'query' }],
-      })
-    }
-    p = global.prisma
-  }
+if (!global.prisma) {
+  global.prisma = prisma
 }
-
-export const prisma = p
