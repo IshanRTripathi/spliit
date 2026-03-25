@@ -9,6 +9,32 @@ export const groupFormSchema = z
     information: z.string().optional(),
     currency: z.string().min(1, 'min1').max(5, 'max5'),
     currencyCode: z.union([z.string().length(3).nullish(), z.literal('')]), // ISO-4217 currency code
+    destinationCurrencyCode: z.union([
+      z.string().length(3).nullish(),
+      z.literal(''),
+    ]),
+    exchangeRate: z
+      .union([
+        z.literal('').transform(() => undefined),
+        z.number().refine((rate) => rate > 0, 'ratePositive'),
+        z.string().transform((value, ctx) => {
+          const valueAsNumber = Number(value)
+          if (Number.isNaN(valueAsNumber)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'invalidNumber',
+            })
+          }
+          if (valueAsNumber <= 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'ratePositive',
+            })
+          }
+          return valueAsNumber
+        }),
+      ])
+      .optional(),
     participants: z
       .array(
         z.object({

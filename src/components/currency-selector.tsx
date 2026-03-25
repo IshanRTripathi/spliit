@@ -8,12 +8,13 @@ import {
   CommandInput,
   CommandItem,
 } from '@/components/ui/command'
-import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer'
+import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from '@/components/ui/drawer'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { Currency } from '@/lib/currency'
 import { useMediaQuery } from '@/lib/hooks'
 import { useTranslations } from 'next-intl'
@@ -80,7 +81,10 @@ export function CurrencySelector({
           isLoading={isLoading}
         />
       </DrawerTrigger>
-      <DrawerContent className="p-0">
+      <DrawerContent className="p-0" aria-describedby={undefined}>
+        <VisuallyHidden>
+          <DrawerTitle>Select Currency</DrawerTitle>
+        </VisuallyHidden>
         <CurrencyCommand
           currencies={currencies}
           onValueChange={(id) => {

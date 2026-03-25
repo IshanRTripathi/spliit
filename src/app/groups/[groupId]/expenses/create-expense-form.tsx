@@ -39,7 +39,7 @@ export function CreateExpenseForm({
 
   return (
     <>
-      {runtimeFeatureFlags.enableReceiptExtract ? (
+      {runtimeFeatureFlags.enableReceiptExtract && autoOpenScan ? (
         <div className="mb-3 flex justify-end">
           <CreateFromReceiptButtonInner compact={false} autoOpen={autoOpenScan} />
         </div>

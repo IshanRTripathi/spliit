@@ -1,5 +1,3 @@
-import { CategorySelector } from '@/components/category-selector'
-import { CurrencySelector } from '@/components/currency-selector'
 import { ExpenseDocumentsInput } from '@/components/expense-documents-input'
 import { SubmitButton } from '@/components/submit-button'
 import { Button } from '@/components/ui/button'
@@ -35,9 +33,9 @@ import {
 } from '@/components/ui/select'
 import { Locale } from '@/i18n/request'
 import { randomId } from '@/lib/api'
-import { defaultCurrencyList, getCurrency } from '@/lib/currency'
+import { getCurrency } from '@/lib/currency'
 import { RuntimeFeatureFlags } from '@/lib/featureFlags'
-import { useActiveUser, useCurrencyRate } from '@/lib/hooks'
+import { useActiveUser } from '@/lib/hooks'
 import {
   ExpenseFormValues,
   SplittingOptions,
@@ -54,11 +52,18 @@ import {
 import { AppRouterOutput } from '@/trpc/routers/_app'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RecurrenceRule } from '@prisma/client'
-import { ChevronRight, Save } from 'lucide-react'
+import { CategoryIcon } from './category-icon'
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronRight,
+  MoreVertical,
+  Save,
+} from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { match } from 'ts-pattern'
 import { DeletePopup } from '../../../../components/delete-popup'
@@ -164,6 +169,7 @@ export function ExpenseForm({
   runtimeFeatureFlags: RuntimeFeatureFlags
 }) {
   const t = useTranslations('ExpenseForm')
+  const tCategories = useTranslations('Categories')
   const locale = useLocale() as Locale
   const isCreate = expense === undefined
   const searchParams = useSearchParams()
@@ -178,9 +184,6 @@ export function ExpenseForm({
     return field?.value
   }
 
-  const getSelectedRecurrenceRule = (field?: { value: string }) => {
-    return field?.value as RecurrenceRule
-  }
   const defaultSplittingOptions = getDefaultSplittingOptions(group)
   const groupCurrency = getCurrencyFromGroup(group)
   const form = useForm<ExpenseFormValues>({
@@ -270,6 +273,17 @@ export function ExpenseForm({
   })
   const [isCategoryLoading, setCategoryLoading] = useState(false)
   const activeUserId = useActiveUser(group.id)
+  const destinationCurrencyCode = group.destinationCurrencyCode ?? ''
+  const groupExchangeRate =
+    group.exchangeRate && Number(group.exchangeRate) > 0
+      ? Number(group.exchangeRate)
+      : null
+  const hasDestinationToggle =
+    !!group.currencyCode &&
+    !!destinationCurrencyCode &&
+    group.currencyCode !== destinationCurrencyCode &&
+    groupExchangeRate !== null
+  const [currencyView, setCurrencyView] = useState<'BASE' | 'DEST'>('BASE')
 
   const submit = async (values: ExpenseFormValues) => {
     await persistDefaultSplittingOptions(group.id, values)
@@ -284,41 +298,46 @@ export function ExpenseForm({
           : shares,
     }))
 
-    // Currency should be blank if same as group currency
-    if (!conversionRequired) {
-      delete values.originalAmount
-      delete values.originalCurrency
-    }
+    // Exchange rate is configured at group level, not per expense.
+    delete values.originalAmount
+    delete values.originalCurrency
+    delete values.conversionRate
+    values.recurrenceRule = RecurrenceRule.NONE
     return onSubmit(values, activeUserId ?? undefined)
   }
 
   const [isIncome, setIsIncome] = useState(Number(form.getValues().amount) < 0)
+  const [isEqualSplit, setIsEqualSplit] = useState(
+    form.getValues().splitMode === 'EVENLY',
+  )
   const [manuallyEditedParticipants, setManuallyEditedParticipants] = useState<
     Set<string>
   >(new Set())
 
   const sExpense = isIncome ? 'Income' : 'Expense'
+  const destinationCurrency = getCurrency(destinationCurrencyCode, locale, '')
+  const amountInBase = Number(form.watch('amount') || 0)
+  const amountInDestination =
+    hasDestinationToggle && groupExchangeRate
+      ? amountInBase * groupExchangeRate
+      : amountInBase
 
-  const originalCurrency = getCurrency(
-    form.getValues('originalCurrency'),
-    locale,
-    'Custom',
-  )
-  const exchangeRate = useCurrencyRate(
-    form.watch('expenseDate'),
-    form.watch('originalCurrency') ?? '',
-    groupCurrency.code,
-  )
-
-  const conversionRequired =
-    group.currencyCode &&
-    group.currencyCode.length &&
-    originalCurrency.code.length &&
-    originalCurrency.code !== group.currencyCode
+  const conversionRateMessage = 'Configured in group settings'
 
   useEffect(() => {
     setManuallyEditedParticipants(new Set())
   }, [form.watch('splitMode'), form.watch('amount')])
+
+  useEffect(() => {
+    if (isEqualSplit) {
+      form.setValue('splitMode', 'EVENLY', { shouldValidate: true })
+      form.setValue(
+        'paidFor',
+        group.participants.map((p) => ({ participant: p.id, shares: '1' as any })),
+        { shouldValidate: true },
+      )
+    }
+  }, [isEqualSplit, group.participants, form])
 
   useEffect(() => {
     const splitMode = form.getValues().splitMode
@@ -374,94 +393,174 @@ export function ExpenseForm({
     form.watch('splitMode'),
   ])
 
-  const [usingCustomConversionRate, setUsingCustomConversionRate] = useState(
-    !!form.formState.defaultValues?.conversionRate,
-  )
 
-  useEffect(() => {
-    if (!usingCustomConversionRate && exchangeRate.data) {
-      form.setValue('conversionRate', exchangeRate.data)
-    }
-  }, [exchangeRate.data, usingCustomConversionRate])
-
-  useEffect(() => {
-    if (!form.getFieldState('originalAmount').isTouched) return
-    const originalAmount = form.getValues('originalAmount') ?? 0
-    const conversionRate = form.getValues('conversionRate')
-
-    if (conversionRate && originalAmount) {
-      const rate = Number(conversionRate)
-      const convertedAmount = originalAmount * rate
-      if (!Number.isNaN(convertedAmount)) {
-        const v = enforceCurrencyPattern(
-          convertedAmount.toFixed(groupCurrency.decimal_digits),
-        )
-        const income = Number(v) < 0
-        setIsIncome(income)
-        if (income) form.setValue('isReimbursement', false)
-        form.setValue('amount', Number(v))
-      }
-    }
-  }, [
-    form.watch('originalAmount'),
-    form.watch('conversionRate'),
-    form.getFieldState('originalAmount').isTouched,
-  ])
-
-  let conversionRateMessage = ''
-  if (exchangeRate.isLoading) {
-    conversionRateMessage = t('conversionRateState.loading')
-  } else {
-    let ratesDisplay = ''
-    if (exchangeRate.data) {
-      // non breaking spaces so the rate text is not split with line feeds
-      ratesDisplay = `${form.getValues('originalCurrency')}\xa01\xa0=\xa0${
-        group.currencyCode
-      }\xa0${exchangeRate.data}`
-    }
-    if (exchangeRate.error) {
-      if (exchangeRate.error instanceof RangeError && exchangeRate.data)
-        conversionRateMessage = t('conversionRateState.dateMismatch', {
-          date: exchangeRate.error.message,
-        })
-      else {
-        conversionRateMessage = t('conversionRateState.error')
-      }
-      conversionRateMessage +=
-        ' ' +
-        (ratesDisplay.length
-          ? `${t('conversionRateState.staleRate')} ${ratesDisplay}`
-          : t('conversionRateState.noRate'))
-    } else {
-      conversionRateMessage = ratesDisplay.length
-        ? `${t('conversionRateState.success')} ${ratesDisplay}`
-        : t('conversionRateState.currencyNotFound')
-    }
-  }
+  const featuredCategories = useMemo(() => {
+    const wanted = [
+      ['Food and Drink', 'Dining Out'],
+      ['Transportation', 'Plane'],
+      ['Transportation', 'Hotel'],
+      ['Transportation', 'Bus/Train'],
+      ['Entertainment', 'Entertainment'],
+      ['Uncategorized', 'General'],
+    ]
+    const picked = wanted
+      .map(([grouping, name]) =>
+        categories.find((c) => c.grouping === grouping && c.name === name),
+      )
+      .filter(Boolean) as typeof categories
+    if (picked.length >= 6) return picked.slice(0, 6)
+    const remaining = categories.filter(
+      (c) => !picked.some((pickedCategory) => pickedCategory.id === c.id),
+    )
+    return [...picked, ...remaining].slice(0, 6)
+  }, [categories])
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(submit)}>
-        <Card className="overflow-hidden">
+      <form
+        onSubmit={form.handleSubmit(submit)}
+        className="mx-auto min-h-screen max-w-2xl space-y-4 bg-[#ECECEE] py-4 text-[#212121]"
+      >
+        <div className="flex h-14 items-center justify-between px-5">
+            <Link href={`/groups/${group.id}`}>
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <h1 className="text-[17px] font-semibold">Add Expense</h1>
+            <button type="button" className="cursor-default">
+              <MoreVertical className="h-5 w-5" />
+            </button>
+        </div>
+        <div className="space-y-5 px-5 pb-6">
+        <Card className="overflow-hidden rounded-3xl border-border/60 bg-card/90 shadow-sm">
           <CardHeader>
             <CardTitle>
               {t(`${sExpense}.${isCreate ? 'create' : 'edit'}`)}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid sm:grid-cols-2 gap-6">
+          <CardContent className="space-y-6">
+            <div>
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field: { onChange, ...field } }) => (
+                  <FormItem className="sm:order-5">
+                    <FormLabel className="mb-1 text-[11px] uppercase tracking-wide text-[#8E8E93]">
+                      TOTAL AMOUNT
+                    </FormLabel>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-end gap-1">
+                      <span className="text-2xl font-semibold text-[#D81B60]">
+                        {currencyView === 'DEST' && hasDestinationToggle
+                          ? destinationCurrency.symbol || destinationCurrencyCode
+                          : group.currency}
+                      </span>
+                      <FormControl>
+                        <Input
+                          className="max-w-[200px] border-0 bg-transparent p-0 text-[36px] font-bold tracking-tight shadow-none focus-visible:ring-0"
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          onChange={(event) => {
+                            const v = enforceCurrencyPattern(event.target.value)
+                            const enteredAmount = Number(v)
+                            const baseAmount =
+                              currencyView === 'DEST' &&
+                              hasDestinationToggle &&
+                              groupExchangeRate
+                                ? enteredAmount / groupExchangeRate
+                                : enteredAmount
+                            const income = Number(baseAmount) < 0
+                            setIsIncome(income)
+                            if (income) form.setValue('isReimbursement', false)
+                            onChange(baseAmount)
+                          }}
+                          onFocus={(e) => {
+                            const target = e.currentTarget
+                            setTimeout(() => target.select(), 1)
+                          }}
+                          value={
+                            currencyView === 'DEST' &&
+                            hasDestinationToggle &&
+                            groupExchangeRate
+                              ? enforceCurrencyPattern(
+                                  String(amountInDestination.toFixed(groupCurrency.decimal_digits)),
+                                )
+                              : field.value
+                          }
+                        />
+                      </FormControl>
+                      </div>
+                      {hasDestinationToggle ? (
+                        <div className="flex rounded-full bg-[#E9E9EB] p-[3px]">
+                          <button
+                            type="button"
+                            onClick={() => setCurrencyView('BASE')}
+                            className={cn(
+                              'px-3 py-[5px] text-xs rounded-full',
+                              currencyView === 'BASE'
+                                ? 'bg-white text-[#D81B60] shadow-sm'
+                                : 'text-[#8E8E93]',
+                            )}
+                          >
+                            {group.currencyCode}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCurrencyView('DEST')}
+                            className={cn(
+                              'px-3 py-[5px] text-xs rounded-full',
+                              currencyView === 'DEST'
+                                ? 'bg-white text-[#D81B60] shadow-sm'
+                                : 'text-[#8E8E93]',
+                            )}
+                          >
+                            {destinationCurrencyCode}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="rounded-full bg-white px-3 py-[5px] text-xs text-[#8E8E93] shadow-sm">
+                          {group.currencyCode ?? group.currency}
+                        </div>
+                      )}
+                    </div>
+                    {!isIncome && (
+                      <FormField
+                        control={form.control}
+                        name="isReimbursement"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row gap-2 items-center space-y-0 pt-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <div>
+                              <FormLabel>
+                                {t('isReimbursementField.label')}
+                              </FormLabel>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            </div>
+
             <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
-                <FormItem className="">
-                  <FormLabel>{t(`${sExpense}.TitleField.label`)}</FormLabel>
+                <FormItem className="hidden">
                   <FormControl>
                     <Input
-                      placeholder={t(`${sExpense}.TitleField.placeholder`)}
-                      className="text-base"
                       {...field}
                       onBlur={async () => {
-                        field.onBlur() // avoid skipping other blur event listeners since we overwrite `field`
+                        field.onBlur()
                         if (runtimeFeatureFlags.enableCategoryExtract) {
                           setCategoryLoading(true)
                           const { categoryId } = await extractCategoryFromTitle(
@@ -473,345 +572,122 @@ export function ExpenseForm({
                       }}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {t(`${sExpense}.TitleField.description`)}
-                  </FormDescription>
-                  <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="expenseDate"
-              render={({ field }) => (
-                <FormItem className="sm:order-1">
-                  <FormLabel>{t(`${sExpense}.DateField.label`)}</FormLabel>
-                  <FormControl>
-                    <Input
-                      className="date-base"
-                      type="date"
-                      defaultValue={formatDate(field.value)}
-                      onChange={(event) => {
-                        return field.onChange(new Date(event.target.value))
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(`${sExpense}.DateField.description`)}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              name="originalCurrency"
-              render={({ field: { onChange, ...field } }) => (
-                <FormItem className="sm:order-3">
-                  <FormLabel>{t(`${sExpense}.currencyField.label`)}</FormLabel>
-                  <FormControl>
-                    {group.currencyCode ? (
-                      <CurrencySelector
-                        currencies={defaultCurrencyList(locale, '')}
-                        defaultValue={form.watch(field.name) ?? ''}
-                        isLoading={false}
-                        onValueChange={(v) => onChange(v)}
-                      />
-                    ) : (
-                      <Input
-                        className="text-base"
-                        disabled={true}
-                        {...field}
-                        placeholder={group.currency}
-                      />
-                    )}
-                  </FormControl>
-                  <FormDescription>
-                    {t(`${sExpense}.currencyField.description`)}{' '}
-                    {!group.currencyCode && t('conversionUnavailable')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div
-              className={`sm:order-4 ${
-                !conversionRequired ? 'max-sm:hidden sm:invisible' : ''
-              } col-span-2 md:col-span-1 space-y-2`}
-            >
+            <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
-                name="originalAmount"
-                render={({ field: { onChange, ...field } }) => (
-                  <FormItem>
-                    <FormLabel>{t('originalAmountField.label')}</FormLabel>
-                    <div className="flex items-baseline gap-2">
-                      <span>{originalCurrency.symbol}</span>
-                      <FormControl>
-                        <Input
-                          className="text-base max-w-[120px]"
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="0.00"
-                          onChange={(event) => {
-                            const v = enforceCurrencyPattern(event.target.value)
-                            onChange(v)
-                          }}
-                          {...field}
-                          onFocus={(e) => {
-                            const target = e.currentTarget
-                            setTimeout(() => target.select(), 1)
-                          }}
-                        />
-                      </FormControl>
-                    </div>
-                    <FormDescription>
-                      {isNaN(form.getValues('expenseDate').getTime()) ? (
-                        t('conversionRateState.noDate')
-                      ) : form.getValues('expenseDate') &&
-                        !usingCustomConversionRate ? (
-                        <>
-                          {conversionRateMessage}
-                          {!exchangeRate.isLoading && (
-                            <Button
-                              className="h-auto py-0"
-                              variant="link"
-                              onClick={() => exchangeRate.refresh()}
-                            >
-                              {t('conversionRateState.refresh')}
-                            </Button>
-                          )}
-                        </>
-                      ) : (
-                        t('conversionRateState.customRate')
-                      )}
-                    </FormDescription>
+                name="expenseDate"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-[14px]">{t(`${sExpense}.DateField.label`)}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        className="h-12 w-full rounded-[20px] border-0 bg-white px-4 text-[14px] shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+                        defaultValue={formatDate(field.value)}
+                        onChange={(event) => {
+                          return field.onChange(new Date(event.target.value))
+                        }}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Collapsible
-                open={usingCustomConversionRate}
-                onOpenChange={setUsingCustomConversionRate}
-              >
-                <CollapsibleTrigger asChild>
-                  <Button variant="link" className="-mx-4">
-                    {usingCustomConversionRate
-                      ? t('conversionRateField.useApi')
-                      : t('conversionRateField.useCustom')}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <FormField
-                    control={form.control}
-                    name="conversionRate"
-                    render={({ field: { onChange, ...field } }) => (
-                      <FormItem
-                        className={`sm:order-4 ${
-                          !conversionRequired
-                            ? 'max-sm:hidden sm:invisible'
-                            : ''
-                        }`}
-                      >
-                        <FormLabel>{t('conversionRateField.label')}</FormLabel>
-                        <div className="flex items-baseline gap-2">
-                          <span>
-                            {originalCurrency.symbol} 1 = {group.currency}
-                          </span>
-                          <FormControl>
-                            <Input
-                              className="text-base max-w-[120px]"
-                              type="text"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                              onChange={(event) => {
-                                const v = enforceCurrencyPattern(
-                                  event.target.value,
-                                )
-                                onChange(v)
-                              }}
-                              {...field}
-                              onFocus={(e) => {
-                                const target = e.currentTarget
-                                setTimeout(() => target.select(), 1)
-                              }}
-                            />
-                          </FormControl>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
+
+              <FormField
+                control={form.control}
+                name="paidBy"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-[14px]">{t(`${sExpense}.paidByField.label`)}</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={getSelectedPayer(field)}
+                    >
+                      <SelectTrigger className="h-12 w-full rounded-[20px] border-0 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.04)]">
+                        <SelectValue
+                          placeholder={t(`${sExpense}.paidByField.placeholder`)}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {group.participants.map(({ id, name }) => (
+                          <SelectItem key={id} value={id}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
+
+            <p className="text-xs text-[#8E8E93]">{conversionRateMessage}</p>
             <FormField
               control={form.control}
               name="category"
               render={({ field }) => (
                 <FormItem className="order-3 sm:order-2">
-                  <FormLabel>{t('categoryField.label')}</FormLabel>
-                  <CategorySelector
-                    categories={categories}
-                    defaultValue={
-                      form.watch(field.name) // may be overwritten externally
-                    }
-                    onValueChange={field.onChange}
-                    isLoading={isCategoryLoading}
-                  />
-                  <FormDescription>
-                    {t(`${sExpense}.categoryFieldDescription`)}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="amount"
-              render={({ field: { onChange, ...field } }) => (
-                <FormItem className="sm:order-5">
-                  <FormLabel>{t('amountField.label')}</FormLabel>
-                  <div className="flex items-baseline gap-2">
-                    <span>{group.currency}</span>
-                    <FormControl>
-                      <Input
-                        className="text-base max-w-[120px]"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        onChange={(event) => {
-                          const v = enforceCurrencyPattern(event.target.value)
-                          const income = Number(v) < 0
-                          setIsIncome(income)
-                          if (income) form.setValue('isReimbursement', false)
-                          onChange(v)
-                        }}
-                        onFocus={(e) => {
-                          // we're adding a small delay to get around safaris issue with onMouseUp deselecting things again
-                          const target = e.currentTarget
-                          setTimeout(() => target.select(), 1)
-                        }}
-                        {...field}
-                      />
-                    </FormControl>
+                  <FormLabel className="text-[14px]">{t('categoryField.label')}</FormLabel>
+                  <div className="grid grid-cols-3 gap-3">
+                    {featuredCategories.map((category) => {
+                      const isSelected = form.watch(field.name) === category.id
+                      return (
+                        <Button
+                          key={category.id}
+                          type="button"
+                          onClick={() => field.onChange(category.id)}
+                          className={cn(
+                            'h-[88px] rounded-[20px] flex-col gap-1 text-[12px]',
+                            isSelected
+                              ? 'bg-magenta-gradient text-white shadow-[0_10px_20px_rgba(216,27,96,0.25)]'
+                              : 'bg-white text-[#6E6E73] shadow-[0_2px_6px_rgba(0,0,0,0.04)]',
+                          )}
+                        >
+                          <CategoryIcon category={category} className="h-5 w-5" />
+                          <span className="line-clamp-1">
+                            {tCategories(`${category.grouping}.${category.name}`)}
+                          </span>
+                        </Button>
+                      )
+                    })}
                   </div>
-                  <FormMessage />
-
-                  {!isIncome && (
-                    <FormField
-                      control={form.control}
-                      name="isReimbursement"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row gap-2 items-center space-y-0 pt-2">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div>
-                            <FormLabel>
-                              {t('isReimbursementField.label')}
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="paidBy"
-              render={({ field }) => (
-                <FormItem className="sm:order-5">
-                  <FormLabel>{t(`${sExpense}.paidByField.label`)}</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={getSelectedPayer(field)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={t(`${sExpense}.paidByField.placeholder`)}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {group.participants.map(({ id, name }) => (
-                        <SelectItem key={id} value={id}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    {t(`${sExpense}.paidByField.description`)}
-                  </FormDescription>
+                  {isCategoryLoading ? (
+                    <FormDescription>{t('conversionRateState.loading')}</FormDescription>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem className="sm:order-6">
-                  <FormLabel>{t('notesField.label')}</FormLabel>
+                  <FormLabel className="text-[14px]">{t('notesField.label')}</FormLabel>
                   <FormControl>
-                    <Textarea className="text-base" {...field} />
+                    <Textarea
+                      className="h-24 w-full rounded-[20px] border-0 bg-white p-4 text-[13px] placeholder:text-[#C7C7CC]"
+                      placeholder="Add transaction details, tags, or reminders..."
+                      {...field}
+                    />
                   </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="recurrenceRule"
-              render={({ field }) => (
-                <FormItem className="sm:order-5">
-                  <FormLabel>{t(`${sExpense}.recurrenceRule.label`)}</FormLabel>
-                  <Select
-                    onValueChange={(value) => {
-                      form.setValue('recurrenceRule', value as RecurrenceRule)
-                    }}
-                    defaultValue={getSelectedRecurrenceRule(field)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="NONE" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE">
-                        {t(`${sExpense}.recurrenceRule.none`)}
-                      </SelectItem>
-                      <SelectItem value="DAILY">
-                        {t(`${sExpense}.recurrenceRule.daily`)}
-                      </SelectItem>
-                      <SelectItem value="WEEKLY">
-                        {t(`${sExpense}.recurrenceRule.weekly`)}
-                      </SelectItem>
-                      <SelectItem value="MONTHLY">
-                        {t(`${sExpense}.recurrenceRule.monthly`)}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    {t(`${sExpense}.recurrenceRule.description`)}
-                  </FormDescription>
-                  <FormMessage />
                 </FormItem>
               )}
             />
           </CardContent>
         </Card>
 
-        <Card className="mt-4 overflow-hidden">
+        <Card className="mt-4 overflow-hidden rounded-[22px] border-0 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.04)]">
           <CardHeader>
-            <CardTitle className="flex justify-between">
-              <span>{t(`${sExpense}.paidFor.title`)}</span>
+            <CardTitle className="flex justify-between text-[14px]">
+              <span>Split with...</span>
               <Button
                 variant="link"
                 type="button"
@@ -843,16 +719,67 @@ export function ExpenseForm({
                 )}
               </Button>
             </CardTitle>
-            <CardDescription>
-              {t(`${sExpense}.paidFor.description`)}
-            </CardDescription>
+            <CardDescription className="hidden">{t(`${sExpense}.paidFor.description`)}</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 rounded-[20px] bg-[#F3F4F6] p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex -space-x-2">
+                  {group.participants.slice(0, 3).map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-[11px] font-semibold text-foreground ring-2 ring-white"
+                    >
+                      {p.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  ))}
+                  {group.participants.length > 3 ? (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E5E7EB] text-xs ring-2 ring-white">
+                      +{group.participants.length - 3}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[14px]">Equal Split</span>
+                <button
+                  type="button"
+                  onClick={() => setIsEqualSplit((prev) => !prev)}
+                  className={cn(
+                    'flex h-6 w-10 items-center rounded-full px-1 transition-colors',
+                    isEqualSplit ? 'bg-[#F8BBD0]' : 'bg-[#D1D5DB]',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'h-4 w-4 rounded-full transition-transform',
+                      isEqualSplit
+                        ? 'ml-auto bg-[#D81B60]'
+                        : 'mr-auto bg-[#6B7280]',
+                    )}
+                  />
+                </button>
+              </div>
+              <p className="text-[12px] text-[#8E8E93]">
+                Each person will owe{' '}
+                <span className="text-[#C62828]">
+                  {formatCurrency(
+                    groupCurrency,
+                    amountAsMinorUnits(
+                      (Number(form.watch('amount')) || 0) /
+                        Math.max(form.watch('paidFor').length || 1, 1),
+                      groupCurrency,
+                    ),
+                    locale,
+                  )}
+                </span>
+              </p>
+            </div>
             <FormField
               control={form.control}
               name="paidFor"
               render={() => (
-                <FormItem className="sm:order-4 row-span-2 space-y-0">
+                <FormItem className={cn('sm:order-4 row-span-2 space-y-0', isEqualSplit && 'hidden')}>
                   {group.participants.map(({ id, name }) => (
                     <FormField
                       key={id}
@@ -949,104 +876,6 @@ export function ExpenseForm({
                               </FormLabel>
                             </FormItem>
                             <div className="flex">
-                              {form.getValues().splitMode === 'BY_AMOUNT' &&
-                                !!conversionRequired && (
-                                  <FormField
-                                    name={`paidFor[${field.value.findIndex(
-                                      ({ participant }) => participant === id,
-                                    )}].originalAmount`}
-                                    render={() => {
-                                      const sharesLabel = (
-                                        <span
-                                          className={cn('text-sm', {
-                                            'text-muted': !field.value?.some(
-                                              ({ participant }) =>
-                                                participant === id,
-                                            ),
-                                          })}
-                                        >
-                                          {originalCurrency.symbol}
-                                        </span>
-                                      )
-                                      return (
-                                        <div>
-                                          <div className="flex gap-1 items-center">
-                                            {sharesLabel}
-                                            <FormControl>
-                                              <Input
-                                                key={String(
-                                                  !field.value?.some(
-                                                    ({ participant }) =>
-                                                      participant === id,
-                                                  ),
-                                                )}
-                                                className="text-base w-[80px] -my-2"
-                                                type="text"
-                                                inputMode="decimal"
-                                                disabled={
-                                                  !field.value?.some(
-                                                    ({ participant }) =>
-                                                      participant === id,
-                                                  )
-                                                }
-                                                value={
-                                                  field.value.find(
-                                                    ({ participant }) =>
-                                                      participant === id,
-                                                  )?.originalAmount ?? ''
-                                                }
-                                                onChange={(event) => {
-                                                  const originalAmount = Number(
-                                                    event.target.value,
-                                                  )
-                                                  let convertedAmount = ''
-                                                  if (
-                                                    !Number.isNaN(
-                                                      originalAmount,
-                                                    ) &&
-                                                    exchangeRate.data
-                                                  ) {
-                                                    convertedAmount = (
-                                                      originalAmount *
-                                                      exchangeRate.data
-                                                    ).toFixed(
-                                                      groupCurrency.decimal_digits,
-                                                    )
-                                                  }
-                                                  field.onChange(
-                                                    field.value.map((p) =>
-                                                      p.participant === id
-                                                        ? {
-                                                            participant: id,
-                                                            originalAmount:
-                                                              event.target
-                                                                .value,
-                                                            shares:
-                                                              enforceCurrencyPattern(
-                                                                convertedAmount,
-                                                              ),
-                                                          }
-                                                        : p,
-                                                    ),
-                                                  )
-                                                  setManuallyEditedParticipants(
-                                                    (prev) =>
-                                                      new Set(prev).add(id),
-                                                  )
-                                                }}
-                                                step={
-                                                  10 **
-                                                  -originalCurrency.decimal_digits
-                                                }
-                                              />
-                                            </FormControl>
-                                            <ChevronRight className="h-4 w-4 mx-1 opacity-50" />
-                                          </div>
-                                        </div>
-                                      )
-                                    }}
-                                  />
-                                )}
                               {form.getValues().splitMode !== 'EVENLY' && (
                                 <FormField
                                   name={`paidFor[${field.value.findIndex(
@@ -1161,17 +990,18 @@ export function ExpenseForm({
               )}
             />
 
-            <Collapsible
-              className="mt-5"
-              defaultOpen={form.getValues().splitMode !== 'EVENLY'}
-            >
-              <CollapsibleTrigger asChild>
-                <Button variant="link" className="-mx-4">
-                  {t('advancedOptions')}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid sm:grid-cols-2 gap-6 pt-3">
+            {!isEqualSplit ? (
+              <Collapsible
+                className="mt-5"
+                defaultOpen={form.getValues().splitMode !== 'EVENLY'}
+              >
+                <CollapsibleTrigger asChild>
+                  <Button variant="link" className="-mx-4">
+                    {t('advancedOptions')}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="grid sm:grid-cols-2 gap-6 pt-3">
                   <FormField
                     control={form.control}
                     name="splitMode"
@@ -1233,18 +1063,17 @@ export function ExpenseForm({
                       </FormItem>
                     )}
                   />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
           </CardContent>
         </Card>
 
-        <Card className="mt-4">
+        <Card className="mt-4 rounded-[22px] border-0 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.04)]">
           <CardHeader>
-            <CardTitle className="flex justify-between">
-              <span>{t('attachDocuments')}</span>
-            </CardTitle>
-            <CardDescription>{t(`${sExpense}.attachDescription`)}</CardDescription>
+            <CardTitle className="text-[14px]">Receipt</CardTitle>
+            <CardDescription className="hidden">{t(`${sExpense}.attachDescription`)}</CardDescription>
           </CardHeader>
           <CardContent>
             <FormField
@@ -1261,11 +1090,14 @@ export function ExpenseForm({
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-2 z-30 mt-4 rounded-2xl border border-border/80 bg-background/95 p-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+        <div className="sticky bottom-3 z-30 mt-4 rounded-2xl bg-transparent p-0 sm:static">
           <div className="flex gap-2">
-          <SubmitButton loadingContent={t(isCreate ? 'creating' : 'saving')}>
+          <SubmitButton
+            loadingContent={t(isCreate ? 'creating' : 'saving')}
+            className="h-[54px] w-full rounded-[24px] bg-magenta-gradient text-white shadow-[0_12px_24px_rgba(216,27,96,0.3)] hover:opacity-95"
+          >
             <Save className="w-4 h-4 mr-2" />
-            {t(isCreate ? 'create' : 'save')}
+            Save Expense
           </SubmitButton>
           {!isCreate && onDelete && (
             <DeletePopup
@@ -1277,6 +1109,7 @@ export function ExpenseForm({
           </Button>
           </div>
         </div>
+          </div>
       </form>
     </Form>
   )

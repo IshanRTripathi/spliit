@@ -154,7 +154,25 @@ export function ExpenseDocumentsInput({
         }}
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 [&_*]:aspect-square">
+      <div className="space-y-3">
+        <Button
+          variant="secondary"
+          type="button"
+          onClick={() => captureInputRef.current?.click()}
+          className="h-40 w-full flex-col gap-2 rounded-3xl border-2 border-dashed border-border bg-muted/40 text-muted-foreground"
+          disabled={pending}
+        >
+          {pending ? (
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          ) : (
+            <>
+              <Plus className="w-8 h-8 text-primary" />
+              <span className="text-xs font-semibold">Snap or Upload</span>
+            </>
+          )}
+        </Button>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 [&_*]:aspect-square">
         {documents.map((doc) => (
           <DocumentThumbnail
             key={doc.id}
@@ -164,21 +182,6 @@ export function ExpenseDocumentsInput({
             deleteDocument={deleteDocument}
           />
         ))}
-
-        <div>
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={() => captureInputRef.current?.click()}
-            className="w-full h-full"
-            disabled={pending}
-          >
-            {pending ? (
-              <Loader2 className="w-8 h-8 animate-spin" />
-            ) : (
-              <Plus className="w-8 h-8" />
-            )}
-          </Button>
         </div>
       </div>
     </div>

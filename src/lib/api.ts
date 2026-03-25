@@ -73,6 +73,8 @@ export async function createGroup(
       information: groupFormValues.information,
       currency: groupFormValues.currency,
       currencyCode: groupFormValues.currencyCode,
+      destinationCurrencyCode: groupFormValues.destinationCurrencyCode || null,
+      exchangeRate: groupFormValues.exchangeRate ?? null,
       participants: {
         createMany: {
           data: [
@@ -395,6 +397,8 @@ export async function updateGroup(
       information: groupFormValues.information,
       currency: groupFormValues.currency,
       currencyCode: groupFormValues.currencyCode,
+      destinationCurrencyCode: groupFormValues.destinationCurrencyCode || null,
+      exchangeRate: groupFormValues.exchangeRate ?? null,
     },
   })
 }

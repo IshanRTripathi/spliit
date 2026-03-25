@@ -67,6 +67,8 @@ export function GroupForm({
           information: group.information ?? '',
           currency: group.currency ?? '',
           currencyCode: group.currencyCode ?? '',
+          destinationCurrencyCode: group.destinationCurrencyCode ?? '',
+          exchangeRate: group.exchangeRate?.toNumber() ?? undefined,
           participants: group.participants,
         }
       : {
@@ -74,6 +76,8 @@ export function GroupForm({
           information: '',
           currency: '',
           currencyCode: process.env.NEXT_PUBLIC_DEFAULT_CURRENCY_CODE || 'USD', // TODO: If NEXT_PUBLIC_DEFAULT_CURRENCY_CODE, is not set, determine the default currency code based on locale
+          destinationCurrencyCode: '',
+          exchangeRate: undefined,
           participants: [],
         },
   })
@@ -200,6 +204,54 @@ export function GroupForm({
                   </FormControl>
                   <FormDescription>
                     {t('CurrencyField.description')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="destinationCurrencyCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Destination currency</FormLabel>
+                  <CurrencySelector
+                    currencies={defaultCurrencyList(
+                      locale as Locale,
+                      t('CurrencyCodeField.customOption'),
+                    )}
+                    defaultValue={form.watch(field.name) ?? ''}
+                    onValueChange={field.onChange}
+                    isLoading={false}
+                  />
+                  <FormDescription>
+                    Optional second currency used in expense entry toggle.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="exchangeRate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Base to destination rate</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      className="text-base"
+                      placeholder="1.08"
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    1 {form.watch('currencyCode') || 'BASE'} equals this many{' '}
+                    {form.watch('destinationCurrencyCode') || 'DEST'}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -18,6 +18,7 @@ export function GroupTabs({ groupId }: Props) {
     { value: 'expenses', label: t('Expenses.title') },
     { value: 'balances', label: t('Balances.title') },
     { value: 'stats', label: t('Stats.title') },
+    { value: 'edit', label: t('Settings.title') },
   ] as const
 
   return (
