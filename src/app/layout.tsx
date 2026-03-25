@@ -64,12 +64,12 @@ export default async function RootLayout({
   const messages = await getMessages()
   return (
     <html lang={locale} suppressHydrationWarning>
-      <ApplePwaSplash icon="/android-chrome-192x192.png" color="#E91E63" />
+      <ApplePwaSplash icon="/logo/192x192.png" color="#E91E63" />
       <body className="min-h-[100dvh] flex flex-col items-stretch bg-background">
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="system"
+            defaultTheme="light"
             enableSystem
             disableTransitionOnChange
           >
