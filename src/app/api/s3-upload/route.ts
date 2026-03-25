@@ -3,10 +3,31 @@ import { env } from '@/lib/env'
 import { POST as route } from 'next-s3-upload/route'
 
 const missing = [
-  !env.S3_UPLOAD_BUCKET ? 'S3_UPLOAD_BUCKET' : null,
-  !env.S3_UPLOAD_REGION ? 'S3_UPLOAD_REGION' : null,
-  !env.S3_UPLOAD_KEY ? 'S3_UPLOAD_KEY' : null,
-  !env.S3_UPLOAD_SECRET ? 'S3_UPLOAD_SECRET' : null,
+  !env.S3_UPLOAD_BUCKET ||
+  env.S3_UPLOAD_BUCKET === 'undefined' ||
+  env.S3_UPLOAD_BUCKET === 'null'
+    ? 'S3_UPLOAD_BUCKET'
+    : null,
+  !env.S3_UPLOAD_REGION ||
+  env.S3_UPLOAD_REGION === 'undefined' ||
+  env.S3_UPLOAD_REGION === 'null'
+    ? 'S3_UPLOAD_REGION'
+    : null,
+  !env.S3_UPLOAD_KEY ||
+  env.S3_UPLOAD_KEY === 'undefined' ||
+  env.S3_UPLOAD_KEY === 'null'
+    ? 'S3_UPLOAD_KEY'
+    : null,
+  !env.S3_UPLOAD_SECRET ||
+  env.S3_UPLOAD_SECRET === 'undefined' ||
+  env.S3_UPLOAD_SECRET === 'null'
+    ? 'S3_UPLOAD_SECRET'
+    : null,
+  !env.S3_UPLOAD_ENDPOINT ||
+  env.S3_UPLOAD_ENDPOINT === 'undefined' ||
+  env.S3_UPLOAD_ENDPOINT === 'null'
+    ? 'S3_UPLOAD_ENDPOINT'
+    : null,
 ].filter(Boolean) as string[]
 
 if (missing.length > 0) {

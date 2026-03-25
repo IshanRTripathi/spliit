@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { normalizeAuthIdentifier } from '@/lib/auth'
 import { ExpenseFormValues, GroupFormValues } from '@/lib/schemas'
+import { TRPCError } from '@trpc/server'
 import {
   ActivityType,
   Expense,
@@ -52,7 +53,10 @@ async function assertGroupAccess(groupId: string, userIdentifier: string) {
     ) as has_access
   `
   if (!rows[0]?.has_access) {
-    throw new Error('Unauthorized group access')
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Unauthorized group access',
+    })
   }
 }
 
